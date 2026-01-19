@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voleybol 3D - Universal</title>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background: #121212; font-family: sans-serif; color: white; }
+        #setup { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; text-align: center; }
+        .btn { padding: 20px 40px; font-size: 20px; cursor: pointer; border-radius: 10px; border: none; margin: 10px; }
+        #game-ui { position: absolute; top: 10px; width: 100%; text-align: center; pointer-events: none; }
+    </style>
+</head>
+<body>
+
+    <div id="setup">
+        <h1>Voleybol 3D</h1>
+        <p>Hangi cihazdasın?</p>
+        <button class="btn" style="background: #3498db;" onclick="initPC()">BİLGİSAYAR (Ekran)</button>
+        <button class="btn" style="background: #2ecc71;" onclick="initPhone()">TELEFON (Kol)</button>
+    </div>
+
+    <div id="game-ui" style="display:none;">
+        <h2 id="display-id">ID: ...</h2>
+    </div>
+
+    <script>
+        let peer, conn;
+        let phoneData = { x: 0, y: 0, swing: false };
+
+        // --- TELEFON MODU ---
+        function initPhone() {
+            document.getElementById('setup').innerHTML = `
+                <h2>KONTROL PANELİ</h2>
+                <input type="text" id="joinID" placeholder="PC Kodunu Yaz" style="padding:15px; width:80%; font-size:20px; text-align:center;"><br>
+                <button class="btn" style="background:#2ecc71" onclick="connectToPC()">BAĞLAN</button>
+                <button class="btn" style="background:#f1c40f" onclick="enableMotion()">HAREKETİ AÇ</button>
+                <p id="status">Bekleniyor...</p>
+            `;
+            peer = new Peer();
+        }
+
+        function connectToPC() {
+            const id = document.getElementById('joinID').value;
+            conn = peer.connect(id);
+            conn.on('open', () => { document.getElementById('status').innerText = "BAĞLANDI!"; });
+        }
+
+        function enableMotion() {
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission().then(s => { if(s==='granted') startTracking(); });
+            } else { startTracking(); }
+        }
+
+        function startTracking() {
+            window.addEventListener('deviceorientation', (e) => {
+                if(conn && conn.open) {
+                    conn.send({ x: Math.round(e.gamma), y: Math.round(e.beta) });
+                }
+            });
+        }
+
+        // --- BİLGİSAYAR MODU (3D OYUN) ---
+        function initPC() {
+            document.getElementById('setup').style.display = 'none';
+            document.getElementById('game-ui').style.display = 'block';
+            
+            const pcID = "vol-" + Math.floor(Math.random()*9000+1000);
+            peer = new Peer(pcID);
+            
+            peer.on('open', id => { document.getElementById('display-id').innerText = "KOD: " + id; });
+            peer.on('connection', c => {
+                conn = c;
+                conn.on('data', data => { phoneData = data; });
+            });
+
+            start3D();
+        }
+
+        function start3D() {
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87ceeb);
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+            const renderer = new THREE.WebGLRenderer({antialias: true});
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            // Saha ve File
+            const ground = new THREE.Mesh(new THREE.PlaneGeometry(20, 40), new THREE.MeshPhongMaterial({color: 0x27ae60}));
+            ground.rotation.x = -Math.PI/2;
+            scene.add(ground);
+            
+            const net = new THREE.Mesh(new THREE.BoxGeometry(20, 4, 0.1), new THREE.MeshPhongMaterial({color: 0xffffff, transparent:true, opacity:0.6}));
+            net.position.y = 2;
+            scene.add(net);
+
+            // Top ve El
+            const ball = new THREE.Mesh(new THREE.SphereGeometry(0.7), new THREE.MeshPhongMaterial({color: 0xf1c40f}));
+            ball.position.set(0, 5, -10);
+            scene.add(ball);
+
+            const hand = new THREE.Mesh(new THREE.BoxGeometry(4, 0.5, 2), new THREE.MeshPhongMaterial({color: 0xe74c3c}));
+            hand.position.set(0, 1, 15);
+            scene.add(hand);
+
+            scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1));
+            camera.position.set(0, 8, 25);
+            camera.lookAt(0, 2, 0);
+
+            let v = { x: 0, y: 0, z: 0.1 };
+
+            function animate() {
+                requestAnimationFrame(animate);
+                
+                // Telefon Hareketi
+                hand.position.x = phoneData.x / 5;
+
+                // Top Fiziği
+                ball.position.x += v.x; ball.position.y += v.y; ball.position.z += v.z;
+                v.y -= 0.005; // Gravity
+
+                if(ball.position.y < 0.7) { v.y = 0.15; ball.position.y = 0.7; }
+                
+                // Vuruş Kontrolü
+                if(Math.abs(ball.position.z - hand.position.z) < 1.5 && Math.abs(ball.position.x - hand.position.x) < 2.5) {
+                    v.z = -0.3; v.y = 0.2; v.x = (ball.position.x - hand.position.x) * 0.1;
+                }
+                
+                // Topu karşıdan geri fırlat (Yapay Zeka gibi düşün)
+                if(ball.position.z < -18) { v.z = 0.2; v.y = 0.2; }
+
+                renderer.render(scene, camera);
+            }
+            animate();
+        }
+    </script>
+</body>
+</html>
