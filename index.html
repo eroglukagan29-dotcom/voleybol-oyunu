@@ -3,52 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Voleybol - Fix Edition</title>
+    <title>3D Voleybol - Final Fix</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         body { margin: 0; overflow: hidden; background: #1a1a1a; font-family: sans-serif; color: white; }
         #setup { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #2c3e50; }
-        .btn { padding: 15px 30px; font-size: 20px; cursor: pointer; border-radius: 10px; border: none; margin: 10px; background: #3498db; color: white; }
-        #ui { position: absolute; top: 10px; width: 100%; text-align: center; pointer-events: none; }
-        #score { font-size: 32px; font-weight: bold; color: #f1c40f; background: rgba(0,0,0,0.3); display: inline-block; padding: 10px 20px; border-radius: 10px; }
+        .btn { padding: 15px 30px; font-size: 20px; cursor: pointer; border-radius: 10px; border: none; margin: 10px; background: #3498db; color: white; transition: 0.3s; }
+        .btn:hover { background: #2980b9; }
+        #ui { position: absolute; top: 10px; width: 100%; text-align: center; pointer-events: none; z-index: 10; }
+        #score { font-size: 32px; font-weight: bold; color: #f1c40f; background: rgba(0,0,0,0.5); padding: 10px 25px; border-radius: 15px; border: 2px solid #f1c40f; }
+        #status-msg { margin-bottom: 5px; font-size: 18px; color: #2ecc71; font-weight: bold; }
         .controller { display: flex; flex-direction: column; align-items: center; padding: 20px; }
-        input { padding: 12px; font-size: 18px; border-radius: 5px; border: none; margin-bottom: 10px; text-align: center; }
+        input { padding: 12px; font-size: 18px; border-radius: 5px; border: none; margin-bottom: 10px; text-align: center; width: 200px; }
     </style>
 </head>
 <body>
 
     <div id="setup">
-        <h1>Voleybol 3D</h1>
+        <h1>Voleybol 3D PRO</h1>
         <button class="btn" onclick="initPC()">BİLGİSAYAR (Ekran)</button>
         <button class="btn" style="background:#2ecc71" onclick="initPhone()">TELEFON (Kol)</button>
     </div>
 
     <div id="ui" style="display:none;">
-        <div id="msg" style="font-size:20px; margin-bottom:5px;">Bağlantı Bekleniyor...</div>
-        <div id="score">Sen: 0 | Rakip: 0</div>
+        <div id="status-msg">KOD BEKLENİYOR...</div>
+        <div id="score">SEN: 0 | RAKİP: 0</div>
     </div>
 
     <script>
         let peer, conn;
         let phoneData = { x: 0, y: 0 };
         let scores = { player: 0, ai: 0 };
-        let isResetting = false; // Puanın seri artmasını engellemek için anahtar
+        let gameState = "PLAYING"; // PLAYING, SCORING
 
         function initPhone() {
             document.getElementById('setup').innerHTML = `
                 <div class="controller">
-                    <input type="text" id="joinID" placeholder="Kodu Yaz">
+                    <input type="text" id="joinID" placeholder="PC KODUNU YAZ">
                     <button class="btn" onclick="connectToPC()">BAĞLAN</button>
                     <button class="btn" style="background:#f1c40f" onclick="enableMotion()">HAREKETİ AÇ</button>
-                    <p id="status">Kod bekleniyor...</p>
+                    <p id="status">Bağlantı bekleniyor...</p>
                 </div>`;
             peer = new Peer();
         }
 
         function connectToPC() {
             conn = peer.connect(document.getElementById('joinID').value);
-            conn.on('open', () => { document.getElementById('status').innerText = "BAĞLANDI!"; });
+            conn.on('open', () => { document.getElementById('status').innerText = "BAĞLANDI! Kontrol sende."; });
         }
 
         function enableMotion() {
@@ -68,103 +70,130 @@
             document.getElementById('ui').style.display = 'block';
             const pcID = "vol-" + Math.floor(Math.random()*9000+1000);
             peer = new Peer(pcID);
-            peer.on('open', id => { document.getElementById('msg').innerText = "KOD: " + id; });
+            peer.on('open', id => { document.getElementById('status-msg').innerText = "KOD: " + id; });
             peer.on('connection', c => { 
                 conn = c; 
                 conn.on('data', d => { phoneData = d; });
-                document.getElementById('msg').innerText = "TELEFON BAĞLANDI!";
+                document.getElementById('status-msg').innerText = "TELEFON BAĞLANDI!";
             });
             start3D();
         }
 
         function start3D() {
             const scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x2c3e50);
+            scene.background = new THREE.Color(0x1e272e);
             const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
             const renderer = new THREE.WebGLRenderer({antialias: true});
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
-            scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-            const ground = new THREE.Mesh(new THREE.PlaneGeometry(20, 40), new THREE.MeshPhongMaterial({color: 0x27ae60}));
+            // Işıklar
+            scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+            const light = new THREE.PointLight(0xffffff, 1);
+            light.position.set(0, 20, 0);
+            scene.add(light);
+
+            // Saha
+            const ground = new THREE.Mesh(new THREE.PlaneGeometry(22, 42), new THREE.MeshPhongMaterial({color: 0x27ae60}));
             ground.rotation.x = -Math.PI/2;
             scene.add(ground);
 
-            const net = new THREE.Mesh(new THREE.BoxGeometry(20, 5, 0.1), new THREE.MeshPhongMaterial({color: 0xffffff, transparent:true, opacity:0.5}));
+            // File
+            const net = new THREE.Mesh(new THREE.BoxGeometry(22, 5, 0.15), new THREE.MeshPhongMaterial({color: 0xffffff, transparent:true, opacity:0.6}));
             net.position.y = 2.5;
             scene.add(net);
 
-            const ball = new THREE.Mesh(new THREE.SphereGeometry(0.7, 32, 32), new THREE.MeshPhongMaterial({color: 0xf1c40f}));
+            // Top
+            const ball = new THREE.Mesh(new THREE.SphereGeometry(0.75, 32, 32), new THREE.MeshPhongMaterial({color: 0xf1c40f}));
             scene.add(ball);
 
-            const player = new THREE.Mesh(new THREE.BoxGeometry(4, 0.5, 2), new THREE.MeshPhongMaterial({color: 0xe74c3c}));
-            player.position.set(0, 0.5, 15);
+            // Oyuncular
+            const player = new THREE.Mesh(new THREE.BoxGeometry(5, 0.6, 2.5), new THREE.MeshPhongMaterial({color: 0xe74c3c}));
+            player.position.set(0, 0.3, 16);
             scene.add(player);
 
-            const ai = new THREE.Mesh(new THREE.BoxGeometry(4, 0.5, 2), new THREE.MeshPhongMaterial({color: 0x3498db}));
-            ai.position.set(0, 0.5, -15);
+            const ai = new THREE.Mesh(new THREE.BoxGeometry(5, 0.6, 2.5), new THREE.MeshPhongMaterial({color: 0x3498db}));
+            ai.position.set(0, 0.3, -16);
             scene.add(ai);
 
-            camera.position.set(0, 15, 25);
+            camera.position.set(0, 16, 28);
             camera.lookAt(0, 0, 0);
 
-            let v = { x: 0, y: 0.2, z: 0.1 };
+            let v = { x: 0, y: 0.2, z: 0.2 };
             
-            function resetBall(winner) {
-                if(isResetting) return;
-                isResetting = true;
+            function resetPoint(winner) {
+                if(gameState !== "PLAYING") return;
+                gameState = "SCORING";
                 
-                if(winner === 'player') scores.player++; else scores.ai++;
-                document.getElementById('score').innerText = `Sen: ${scores.player} | Rakip: ${scores.ai}`;
+                if(winner === "AI") scores.ai++; else scores.player++;
+                document.getElementById('score').innerText = `SEN: ${scores.player} | RAKİP: ${scores.ai}`;
 
-                // Topu hemen resetle
+                // Topu ve hızı sıfırla
                 setTimeout(() => {
-                    ball.position.set(0, 10, winner === 'player' ? -10 : 10);
-                    v = { x: 0, y: 0, z: winner === 'player' ? 0.2 : -0.2 };
-                    isResetting = false;
-                }, 500);
+                    ball.position.set(0, 12, winner === "AI" ? 12 : -12);
+                    v = { x: 0, y: 0, z: winner === "AI" ? -0.25 : 0.25 };
+                    gameState = "PLAYING";
+                }, 1000);
             }
 
-            // İlk başlangıç
-            ball.position.set(0, 10, -10);
+            ball.position.set(0, 10, -12);
 
             function animate() {
                 requestAnimationFrame(animate);
 
-                // Kontroller
-                player.position.x = phoneData.x / 4;
-                ai.position.x += (ball.position.x - ai.position.x) * 0.1;
+                // Kontrol Hassasiyeti (Yumuşatılmış)
+                let targetX = phoneData.x / 4;
+                player.position.x += (targetX - player.position.x) * 0.2;
+                
+                // AI Mantığı
+                ai.position.x += (ball.position.x - ai.position.x) * 0.12;
 
-                // Fizik
-                if(!isResetting) {
+                if(gameState === "PLAYING") {
                     ball.position.x += v.x;
                     ball.position.y += v.y;
                     ball.position.z += v.z;
-                    v.y -= 0.01; // Gravity
+                    v.y -= 0.012; // Yerçekimi
 
-                    // Yer kontrolü
-                    if(ball.position.y < 0.7) {
-                        resetBall(ball.position.z > 0 ? 'ai' : 'player');
+                    // YERE DEĞME KONTROLÜ
+                    if(ball.position.y < 0.75) {
+                        // Eğer top file önündeyse (0'ın ilerisi veya gerisi) puan yaz
+                        if(ball.position.z > 0) resetPoint("AI");
+                        else resetPoint("PLAYER");
                     }
 
-                    // Vuruşlar
-                    [player, ai].forEach((p, index) => {
-                        let hitRangeZ = index === 0 ? 1.5 : -1.5;
-                        if(Math.abs(ball.position.z - p.position.z) < 1.2 && Math.abs(ball.position.x - p.position.x) < 2.5 && ball.position.y < 3) {
-                            v.z = index === 0 ? -0.4 : 0.4;
-                            v.y = 0.3;
-                            v.x = (ball.position.x - p.position.x) * 0.2;
-                        }
-                    });
+                    // OYUNCU VURUŞU
+                    if(Math.abs(ball.position.z - player.position.z) < 1.5 && Math.abs(ball.position.x - player.position.x) < 3 && ball.position.y < 3.5) {
+                        v.z = -0.45;
+                        v.y = 0.35;
+                        v.x = (ball.position.x - player.position.x) * 0.25;
+                        ball.position.z = player.position.z - 1.6; // Topun içeri girmesini engelle
+                    }
 
-                    // Yan duvarlar
-                    if(Math.abs(ball.position.x) > 10) v.x *= -1;
+                    // RAKİP VURUŞU
+                    if(Math.abs(ball.position.z - ai.position.z) < 1.5 && Math.abs(ball.position.x - ai.position.x) < 3 && ball.position.y < 3.5) {
+                        v.z = 0.45;
+                        v.y = 0.35;
+                        v.x = (ball.position.x - ai.position.x) * 0.25;
+                        ball.position.z = ai.position.z + 1.6;
+                    }
+
+                    // Yan Duvar Sekmesi
+                    if(Math.abs(ball.position.x) > 10.5) {
+                        v.x *= -1;
+                        ball.position.x = ball.position.x > 0 ? 10.4 : -10.4;
+                    }
                 }
 
                 renderer.render(scene, camera);
             }
             animate();
         }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
     </script>
 </body>
 </html>
