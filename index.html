@@ -3,58 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Voleybol PRO - Buton Fix</title>
+    <title>Voleybol PRO - Skor Fix</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         body { margin: 0; overflow: hidden; background: #1a1a1a; font-family: sans-serif; color: white; }
-        #setup { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #2c3e50; z-index: 100; position: relative; }
-        .btn { padding: 15px 40px; font-size: 22px; cursor: pointer; border-radius: 12px; border: none; margin: 15px; color: white; box-shadow: 0 4px 10px rgba(0,0,0,0.3); transition: 0.2s; }
+        #setup { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #2c3e50; }
+        .btn { padding: 15px 40px; font-size: 22px; cursor: pointer; border-radius: 12px; border: none; margin: 10px; color: white; }
         #ui { position: absolute; top: 10px; width: 100%; text-align: center; pointer-events: none; display: none; }
-        #score { font-size: 30px; font-weight: bold; color: #f1c40f; background: rgba(0,0,0,0.6); padding: 10px 25px; border-radius: 15px; display: inline-block; }
+        #score { font-size: 32px; font-weight: bold; color: #f1c40f; background: rgba(0,0,0,0.6); padding: 10px 25px; border-radius: 15px; }
     </style>
 </head>
 <body>
 
     <div id="setup">
-        <h1 style="margin-bottom:30px;">Voleybol 3D Online</h1>
+        <h1>Voleybol 3D PRO</h1>
         <button id="pcBtn" class="btn" style="background:#3498db;">BİLGİSAYAR (Ekran)</button>
         <button id="phoneBtn" class="btn" style="background:#2ecc71;">TELEFON (Kol)</button>
     </div>
 
     <div id="ui">
-        <div id="msg" style="color:#2ecc71; font-weight:bold; margin-bottom:10px; font-size:20px;">BAĞLANTI BEKLENİYOR...</div>
+        <div id="msg" style="color:#2ecc71; font-weight:bold; margin-bottom:10px;">BAĞLANTI BEKLENİYOR...</div>
         <div id="score">SEN: 0 | RAKİP: 0</div>
     </div>
 
     <script>
-        // Global Değişkenler
         let peer, conn;
         let phoneData = { x: 0, y: 0 };
         let scores = { player: 0, ai: 0 };
-        let isWaiting = false;
+        let gameLocked = false; // Puanın seri artmasını engelleyen kilit
 
-        // Buton Dinleyicileri (Butonların çalışmama hatasını çözer)
         document.getElementById('pcBtn').addEventListener('click', initPC);
         document.getElementById('phoneBtn').addEventListener('click', initPhone);
 
         function initPhone() {
             document.getElementById('setup').innerHTML = `
-                <div style="display:flex; flex-direction:column; align-items:center; background:#34495e; padding:30px; border-radius:20px;">
-                    <h2 style="margin-bottom:20px;">Kontrolcü Modu</h2>
-                    <input type="text" id="joinID" placeholder="PC Kodunu Yaz" style="padding:15px; font-size:20px; text-align:center; border-radius:10px; border:none; width:220px;">
-                    <button class="btn" style="background:#2ecc71; width:100%;" onclick="connectToPC()">1. BAĞLAN</button>
-                    <button class="btn" style="background:#f1c40f; width:100%;" onclick="enableMotion()">2. HAREKETİ AÇ</button>
-                    <p id="status" style="margin-top:20px; font-weight:bold;">Bağlantı bekleniyor...</p>
+                <div style="display:flex; flex-direction:column; align-items:center;">
+                    <input type="text" id="joinID" placeholder="Kodu Yaz" style="padding:15px; font-size:20px; text-align:center; border-radius:10px;">
+                    <button class="btn" style="background:#2ecc71" onclick="connectToPC()">BAĞLAN</button>
+                    <button class="btn" style="background:#f1c40f" onclick="enableMotion()">HAREKETİ AÇ</button>
+                    <p id="status">Bekleniyor...</p>
                 </div>`;
             peer = new Peer();
         }
 
         function connectToPC() {
-            const code = document.getElementById('joinID').value.trim();
-            if(!code) return alert("Lütfen PC'deki kodu yaz!");
-            conn = peer.connect(code);
-            conn.on('open', () => { document.getElementById('status').innerText = "BAĞLANDI! PC'ye veri gidiyor."; });
+            conn = peer.connect(document.getElementById('joinID').value);
+            conn.on('open', () => { document.getElementById('status').innerText = "BAĞLANDI!"; });
         }
 
         function enableMotion() {
@@ -74,31 +69,27 @@
             document.getElementById('ui').style.display = 'block';
             const pcID = "vol-" + Math.floor(Math.random()*9000+1000);
             peer = new Peer(pcID);
-            peer.on('open', id => { document.getElementById('msg').innerText = "TELEFONA YAZILACAK KOD: " + id; });
+            peer.on('open', id => { document.getElementById('msg').innerText = "KOD: " + id; });
             peer.on('connection', c => { 
                 conn = c; 
                 conn.on('data', d => { phoneData = d; });
-                document.getElementById('msg').innerText = "TELEFON BAĞLANDI! OYUN BAŞLADI.";
+                document.getElementById('msg').innerText = "TELEFON BAĞLANDI!";
             });
             start3D();
         }
 
         function start3D() {
             const scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x1a1a2e);
+            scene.background = new THREE.Color(0x2c3e50);
             const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
             const renderer = new THREE.WebGLRenderer({antialias: true});
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
-            scene.add(new THREE.AmbientLight(0xffffff, 0.9));
-            const ground = new THREE.Mesh(new THREE.PlaneGeometry(24, 44), new THREE.MeshPhongMaterial({color: 0x27ae60}));
+            scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+            const ground = new THREE.Mesh(new THREE.PlaneGeometry(25, 45), new THREE.MeshPhongMaterial({color: 0x27ae60}));
             ground.rotation.x = -Math.PI/2;
             scene.add(ground);
-
-            const net = new THREE.Mesh(new THREE.BoxGeometry(24, 5, 0.1), new THREE.MeshPhongMaterial({color: 0xffffff, transparent:true, opacity:0.6}));
-            net.position.y = 2.5;
-            scene.add(net);
 
             const ball = new THREE.Mesh(new THREE.SphereGeometry(0.8, 32, 32), new THREE.MeshPhongMaterial({color: 0xf1c40f}));
             scene.add(ball);
@@ -114,45 +105,64 @@
             camera.position.set(0, 18, 28);
             camera.lookAt(0, 0, 0);
 
-            let v = { x: 0, y: 0.1, z: 0.2 };
+            let v = { x: 0, y: 0.1, z: 0.25 };
 
             function resetBall(winner) {
-                if(isWaiting) return;
-                isWaiting = true;
+                if(gameLocked) return;
+                gameLocked = true;
+
                 if(winner === 'PLAYER') scores.player++; else scores.ai++;
                 document.getElementById('score').innerText = `SEN: ${scores.player} | RAKİP: ${scores.ai}`;
-                ball.position.y = 60; 
+
+                // Topu sahadan tamamen uzaklaştır
+                ball.position.set(0, -10, 0); 
+                v = { x: 0, y: 0, z: 0 };
+
                 setTimeout(() => {
+                    // Topu havada tekrar başlat
                     ball.position.set(0, 12, winner === 'PLAYER' ? -15 : 15);
-                    v = { x: 0, y: 0, z: winner === 'PLAYER' ? 0.25 : -0.25 };
-                    isWaiting = false;
-                }, 1000);
+                    v = { x: 0, y: 0, z: winner === 'PLAYER' ? 0.3 : -0.3 };
+                    gameLocked = false;
+                }, 1500);
             }
 
             ball.position.set(0, 10, -15);
 
             function animate() {
                 requestAnimationFrame(animate);
-                player.position.x = phoneData.x / 3.2;
-                ai.position.x += (ball.position.x - ai.position.x) * 0.12;
+                
+                player.position.x = phoneData.x / 3.5;
+                ai.position.x += (ball.position.x - ai.position.x) * 0.15;
 
-                if(!isWaiting) {
-                    ball.position.x += v.x; ball.position.y += v.y; ball.position.z += v.z;
-                    v.y -= 0.01;
+                if(!gameLocked) {
+                    ball.position.x += v.x;
+                    ball.position.y += v.y;
+                    ball.position.z += v.z;
+                    v.y -= 0.01; // Yerçekimi
+
+                    // YERE DEĞME VE SKOR
                     if(ball.position.y < 0.8) {
-                        if(ball.position.z > 0) resetBall('AI'); else resetBall('PLAYER');
+                        if(ball.position.z > 0) resetBall('AI');
+                        else resetBall('PLAYER');
                     }
+
+                    // VURUŞ KONTROLÜ
                     const checkHit = (p, isP) => {
-                        let dz = ball.position.z - p.position.z;
-                        let dx = ball.position.x - p.position.x;
-                        if(Math.abs(dz) < 2.2 && Math.abs(dx) < 3.8 && ball.position.y < 4) {
-                            v.z = isP ? -0.45 : 0.45; v.y = 0.38; v.x = dx * 0.22;
-                            ball.position.y = 4.2;
+                        let dz = Math.abs(ball.position.z - p.position.z);
+                        let dx = Math.abs(ball.position.x - p.position.x);
+                        if(dz < 1.8 && dx < 3.5 && ball.position.y < 3.5) {
+                            v.z = isP ? -0.45 : 0.45;
+                            v.y = 0.35;
+                            v.x = (ball.position.x - p.position.x) * 0.2;
+                            ball.position.y = 3.6; // Topu yukarı çek
                         }
                     }
-                    checkHit(player, true); checkHit(ai, false);
-                    if(Math.abs(ball.position.x) > 11.5) v.x *= -1;
+                    checkHit(player, true);
+                    checkHit(ai, false);
+
+                    if(Math.abs(ball.position.x) > 12) v.x *= -1;
                 }
+
                 renderer.render(scene, camera);
             }
             animate();
