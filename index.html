@@ -1,42 +1,52 @@
 <!DOCTYPE html>
-<html>
+<html lang="tr">
 <head>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Voleybol 3D - Universal</title>
+    <title>3D Voleybol - Jiroskop Kontrollü</title>
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
-        body { margin: 0; overflow: hidden; background: #121212; font-family: sans-serif; color: white; }
-        #setup { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; text-align: center; }
-        .btn { padding: 20px 40px; font-size: 20px; cursor: pointer; border-radius: 10px; border: none; margin: 10px; }
-        #game-ui { position: absolute; top: 10px; width: 100%; text-align: center; pointer-events: none; }
+        body { margin: 0; overflow: hidden; background: #1a1a1a; font-family: 'Segoe UI', sans-serif; color: white; }
+        #setup { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: radial-gradient(circle, #2c3e50, #000); }
+        .btn { padding: 20px 50px; font-size: 22px; font-weight: bold; cursor: pointer; border-radius: 50px; border: none; margin: 15px; transition: 0.3s; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .btn-pc { background: #3498db; color: white; }
+        .btn-phone { background: #2ecc71; color: white; }
+        .btn:hover { transform: scale(1.05); opacity: 0.9; }
+        #ui { position: absolute; top: 20px; width: 100%; text-align: center; pointer-events: none; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
+        .controller-panel { display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        input { padding: 15px; font-size: 20px; border-radius: 10px; border: none; margin-bottom: 20px; width: 80%; text-align: center; }
     </style>
 </head>
 <body>
 
     <div id="setup">
         <h1>Voleybol 3D</h1>
-        <p>Hangi cihazdasın?</p>
-        <button class="btn" style="background: #3498db;" onclick="initPC()">BİLGİSAYAR (Ekran)</button>
-        <button class="btn" style="background: #2ecc71;" onclick="initPhone()">TELEFON (Kol)</button>
+        <p>Cihaz tipini seçerek başla:</p>
+        <button class="btn btn-pc" onclick="initPC()">BİLGİSAYAR (Ekran)</button>
+        <button class="btn btn-phone" onclick="initPhone()">TELEFON (Kol)</button>
     </div>
 
-    <div id="game-ui" style="display:none;">
-        <h2 id="display-id">ID: ...</h2>
+    <div id="ui" style="display:none;">
+        <h2 id="display-id">ID Oluşturuluyor...</h2>
+        <div id="score" style="font-size: 24px;">Sen: 0 | Rakip: 0</div>
     </div>
 
     <script>
         let peer, conn;
-        let phoneData = { x: 0, y: 0, swing: false };
+        let phoneData = { x: 0, y: 0 };
+        let scores = { player: 0, ai: 0 };
 
         // --- TELEFON MODU ---
         function initPhone() {
             document.getElementById('setup').innerHTML = `
-                <h2>KONTROL PANELİ</h2>
-                <input type="text" id="joinID" placeholder="PC Kodunu Yaz" style="padding:15px; width:80%; font-size:20px; text-align:center;"><br>
-                <button class="btn" style="background:#2ecc71" onclick="connectToPC()">BAĞLAN</button>
-                <button class="btn" style="background:#f1c40f" onclick="enableMotion()">HAREKETİ AÇ</button>
-                <p id="status">Bekleniyor...</p>
+                <div class="controller-panel">
+                    <h2>KONTROL PANELİ</h2>
+                    <input type="text" id="joinID" placeholder="PC Kodunu Buraya Yaz">
+                    <button class="btn btn-phone" onclick="connectToPC()">1. BAĞLAN</button>
+                    <button class="btn btn-pc" onclick="enableMotion()">2. HAREKETİ ETKİNLEŞTİR</button>
+                    <p id="status" style="margin-top:20px; color:#f1c40f;">Bağlantı Bekleniyor...</p>
+                </div>
             `;
             peer = new Peer();
         }
@@ -44,7 +54,10 @@
         function connectToPC() {
             const id = document.getElementById('joinID').value;
             conn = peer.connect(id);
-            conn.on('open', () => { document.getElementById('status').innerText = "BAĞLANDI!"; });
+            conn.on('open', () => { 
+                document.getElementById('status').innerText = "BAĞLANDI! Telefonu sağa/sola eğebilirsin.";
+                document.getElementById('status').style.color = "#2ecc71";
+            });
         }
 
         function enableMotion() {
@@ -61,18 +74,20 @@
             });
         }
 
-        // --- BİLGİSAYAR MODU (3D OYUN) ---
+        // --- BİLGİSAYAR MODU (THREE.JS OYUN) ---
         function initPC() {
             document.getElementById('setup').style.display = 'none';
-            document.getElementById('game-ui').style.display = 'block';
+            document.getElementById('ui').style.display = 'block';
             
             const pcID = "vol-" + Math.floor(Math.random()*9000+1000);
             peer = new Peer(pcID);
             
-            peer.on('open', id => { document.getElementById('display-id').innerText = "KOD: " + id; });
+            peer.on('open', id => { document.getElementById('display-id').innerText = "TELEFONA YAZILACAK KOD: " + id; });
             peer.on('connection', c => {
                 conn = c;
                 conn.on('data', data => { phoneData = data; });
+                document.getElementById('display-id').style.color = "#2ecc71";
+                document.getElementById('display-id').innerText = "TELEFON BAĞLANDI!";
             });
 
             start3D();
@@ -80,60 +95,110 @@
 
         function start3D() {
             const scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x87ceeb);
+            scene.background = new THREE.Color(0x34495e);
             const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
             const renderer = new THREE.WebGLRenderer({antialias: true});
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
-            // Saha ve File
+            // Işıklar
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            sunLight.position.set(5, 15, 10);
+            scene.add(sunLight);
+
+            // Saha
             const ground = new THREE.Mesh(new THREE.PlaneGeometry(20, 40), new THREE.MeshPhongMaterial({color: 0x27ae60}));
             ground.rotation.x = -Math.PI/2;
             scene.add(ground);
             
-            const net = new THREE.Mesh(new THREE.BoxGeometry(20, 4, 0.1), new THREE.MeshPhongMaterial({color: 0xffffff, transparent:true, opacity:0.6}));
-            net.position.y = 2;
+            // File
+            const net = new THREE.Mesh(new THREE.BoxGeometry(21, 5, 0.2), new THREE.MeshPhongMaterial({color: 0xffffff, transparent:true, opacity:0.7}));
+            net.position.y = 2.5;
             scene.add(net);
 
-            // Top ve El
-            const ball = new THREE.Mesh(new THREE.SphereGeometry(0.7), new THREE.MeshPhongMaterial({color: 0xf1c40f}));
+            // Top
+            const ball = new THREE.Mesh(new THREE.SphereGeometry(0.7, 32, 32), new THREE.MeshPhongMaterial({color: 0xf1c40f}));
             ball.position.set(0, 5, -10);
             scene.add(ball);
 
-            const hand = new THREE.Mesh(new THREE.BoxGeometry(4, 0.5, 2), new THREE.MeshPhongMaterial({color: 0xe74c3c}));
-            hand.position.set(0, 1, 15);
-            scene.add(hand);
+            // Oyuncu (Kırmızı) ve Rakip (Mavi)
+            const player = new THREE.Mesh(new THREE.BoxGeometry(4, 0.5, 2), new THREE.MeshPhongMaterial({color: 0xe74c3c}));
+            player.position.set(0, 1, 15);
+            scene.add(player);
 
-            scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1));
-            camera.position.set(0, 8, 25);
-            camera.lookAt(0, 2, 0);
+            const ai = new THREE.Mesh(new THREE.BoxGeometry(4, 0.5, 2), new THREE.MeshPhongMaterial({color: 0x2980b9}));
+            ai.position.set(0, 1, -15);
+            scene.add(ai);
 
-            let v = { x: 0, y: 0, z: 0.1 };
+            camera.position.set(0, 12, 28);
+            camera.lookAt(0, 0, 0);
+
+            let v = { x: 0, y: 0, z: 0.15 };
+            let gameActive = true;
 
             function animate() {
                 requestAnimationFrame(animate);
-                
-                // Telefon Hareketi
-                hand.position.x = phoneData.x / 5;
+                if(!gameActive) return;
 
-                // Top Fiziği
-                ball.position.x += v.x; ball.position.y += v.y; ball.position.z += v.z;
-                v.y -= 0.005; // Gravity
+                // 1. Oyuncu Hareketi (Telefonla)
+                player.position.x = phoneData.x / 4;
+                if(player.position.x > 8) player.position.x = 8;
+                if(player.position.x < -8) player.position.x = -8;
 
-                if(ball.position.y < 0.7) { v.y = 0.15; ball.position.y = 0.7; }
-                
-                // Vuruş Kontrolü
-                if(Math.abs(ball.position.z - hand.position.z) < 1.5 && Math.abs(ball.position.x - hand.position.x) < 2.5) {
-                    v.z = -0.3; v.y = 0.2; v.x = (ball.position.x - hand.position.x) * 0.1;
+                // 2. Yapay Zeka Hareketi
+                let aiSpeed = 0.08;
+                ai.position.x += (ball.position.x - ai.position.x) * aiSpeed;
+
+                // 3. Top Fiziği
+                ball.position.x += v.x;
+                ball.position.y += v.y;
+                ball.position.z += v.z;
+                v.y -= 0.006; // Yerçekimi
+
+                // Top yere değerse
+                if(ball.position.y < 0.7) {
+                    if(ball.position.z > 0) scores.ai++; else scores.player++;
+                    document.getElementById('score').innerText = `Sen: ${scores.player} | Rakip: ${scores.ai}`;
+                    resetBall();
                 }
-                
-                // Topu karşıdan geri fırlat (Yapay Zeka gibi düşün)
-                if(ball.position.z < -18) { v.z = 0.2; v.y = 0.2; }
+
+                // Oyuncu Vuruşu
+                if(Math.abs(ball.position.z - player.position.z) < 1.2 && Math.abs(ball.position.x - player.position.x) < 2.5 && ball.position.y < 2.5) {
+                    v.z = -0.35;
+                    v.y = 0.25;
+                    v.x = (ball.position.x - player.position.x) * 0.15;
+                }
+
+                // AI Vuruşu
+                if(Math.abs(ball.position.z - ai.position.z) < 1.2 && Math.abs(ball.position.x - ai.position.x) < 2.5 && ball.position.y < 2.5) {
+                    v.z = 0.35;
+                    v.y = 0.25;
+                    v.x = (ball.position.x - ai.position.x) * 0.15;
+                }
+
+                // Duvarlardan Sekme
+                if(ball.position.x > 10 || ball.position.x < -10) v.x *= -1;
 
                 renderer.render(scene, camera);
             }
+
+            function resetBall() {
+                ball.position.set(0, 8, -5);
+                v = { x: 0, y: 0, z: 0.15 };
+            }
+
             animate();
         }
+
+        window.addEventListener('resize', () => {
+            if(camera && renderer) {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+        });
     </script>
 </body>
 </html>
