@@ -1,178 +1,132 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Voleybol PRO - Hata Yok Edition</title>
-    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <style>
-        body { margin: 0; overflow: hidden; background: #1a1a1a; font-family: sans-serif; color: white; }
-        #setup { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #2c3e50; }
-        .btn { padding: 15px 40px; font-size: 22px; cursor: pointer; border-radius: 12px; border: none; margin: 10px; color: white; }
-        #ui { position: absolute; top: 10px; width: 100%; text-align: center; pointer-events: none; display: none; }
-        #score { font-size: 32px; font-weight: bold; color: #f1c40f; background: rgba(0,0,0,0.6); padding: 10px 25px; border-radius: 15px; border: 2px solid white; }
-    </style>
+<meta charset="utf-8">
+<title>Web Duck Hunt</title>
+<style>
+body{margin:0;background:#111;color:white;font-family:sans-serif;text-align:center}
+button{font-size:22px;margin:10px;padding:10px 20px}
+canvas{background:#4ec0ff;display:none}
+#video{display:none}
+textarea{width:90%;height:80px}
+</style>
 </head>
 <body>
 
-    <div id="setup">
-        <h1>VOLEYBOL 3D - FIXED</h1>
-        <button id="pcBtn" class="btn" style="background:#3498db;">BİLGİSAYAR (Ekran)</button>
-        <button id="phoneBtn" class="btn" style="background:#2ecc71;">TELEFON (Kol)</button>
-    </div>
+<h1>Duck Hunt Web</h1>
+<div id="menu">
+  <button onclick="start('screen')">Ekran (TV/PC)</button>
+  <button onclick="start('gun')">Silah (Telefon)</button>
+</div>
 
-    <div id="ui">
-        <div id="msg" style="color:#2ecc71; font-weight:bold; margin-bottom:10px;">BAĞLANTI BEKLENİYOR...</div>
-        <div id="score">SEN: 0 | RAKİP: 0</div>
-    </div>
+<div id="connect" style="display:none">
+  <p>Bu kodu karşı cihaza yapıştır:</p>
+  <textarea id="offer"></textarea><br>
+  <button onclick="copyOffer()">Kopyala</button>
+  <p>Karşıdan gelen kodu buraya yapıştır:</p>
+  <textarea id="answer"></textarea><br>
+  <button onclick="setAnswer()">Bağlan</button>
+</div>
 
-    <script>
-        let peer, conn;
-        let phoneData = { x: 0, y: 0 };
-        let scores = { player: 0, ai: 0 };
-        let gameActive = false;
+<canvas id="game"></canvas>
+<video id="video" autoplay playsinline width="300"></video>
+<br>
+<button id="fireBtn" style="display:none" onclick="fire()">ATEŞ</button>
 
-        document.getElementById('pcBtn').addEventListener('click', initPC);
-        document.getElementById('phoneBtn').addEventListener('click', initPhone);
+<script>
+let role, pc, dc;
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const video = document.getElementById("video");
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
 
-        function initPhone() {
-            document.getElementById('setup').innerHTML = `
-                <div style="text-align:center;">
-                    <input type="text" id="joinID" placeholder="Kodu Yaz" style="padding:15px; font-size:20px; text-align:center; border-radius:10px;">
-                    <br><button class="btn" style="background:#2ecc71" onclick="connectToPC()">BAĞLAN</button>
-                    <button class="btn" style="background:#f1c40f" onclick="enableMotion()">HAREKETİ AÇ</button>
-                    <p id="status">Kodu girip bağlanın.</p>
-                </div>`;
-            peer = new Peer();
-        }
+let duck = {x:300,y:200,r:40};
+let flash=false;
 
-        function connectToPC() {
-            conn = peer.connect(document.getElementById('joinID').value);
-            conn.on('open', () => { document.getElementById('status').innerText = "BAĞLANDI!"; });
-        }
+function start(r){
+  role=r;
+  document.getElementById("menu").style.display="none";
+  document.getElementById("connect").style.display="block";
 
-        function enableMotion() {
-            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-                DeviceOrientationEvent.requestPermission().then(s => { if(s==='granted') startTracking(); });
-            } else { startTracking(); }
-        }
+  pc = new RTCPeerConnection();
+  dc = pc.createDataChannel("data");
 
-        function startTracking() {
-            window.addEventListener('deviceorientation', (e) => {
-                if(conn && conn.open) conn.send({ x: Math.round(e.gamma), y: Math.round(e.beta) });
-            });
-        }
+  dc.onmessage = (e)=>{
+    if(e.data==="FIRE" && role==="screen"){
+      flashWhite();
+    }
+  };
 
-        function initPC() {
-            document.getElementById('setup').style.display = 'none';
-            document.getElementById('ui').style.display = 'block';
-            const pcID = "vol-" + Math.floor(Math.random()*9000+1000);
-            peer = new Peer(pcID);
-            peer.on('open', id => { document.getElementById('msg').innerText = "KOD: " + id; });
-            peer.on('connection', c => { 
-                conn = c; 
-                conn.on('data', d => { phoneData = d; });
-                document.getElementById('msg').innerText = "OYUNCU BAĞLANDI!";
-                gameActive = true;
-            });
-            start3D();
-        }
+  pc.onicecandidate = e=>{
+    if(!e.candidate){
+      document.getElementById("offer").value =
+        btoa(JSON.stringify(pc.localDescription));
+    }
+  };
 
-        function start3D() {
-            const scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x34495e);
-            const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-            const renderer = new THREE.WebGLRenderer({antialias: true});
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            document.body.appendChild(renderer.domElement);
+  if(role==="screen"){
+    draw();
+  }
 
-            scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-            const ground = new THREE.Mesh(new THREE.PlaneGeometry(25, 45), new THREE.MeshPhongMaterial({color: 0x27ae60}));
-            ground.rotation.x = -Math.PI/2;
-            scene.add(ground);
+  if(role==="gun"){
+    navigator.mediaDevices.getUserMedia({video:true})
+      .then(s=>video.srcObject=s);
+    video.style.display="block";
+    document.getElementById("fireBtn").style.display="inline";
+  }
 
-            const net = new THREE.Mesh(new THREE.BoxGeometry(25, 6, 0.2), new THREE.MeshPhongMaterial({color: 0xffffff, transparent:true, opacity:0.5}));
-            net.position.y = 3;
-            scene.add(net);
+  pc.createOffer().then(o=>pc.setLocalDescription(o));
+}
 
-            let ball = new THREE.Mesh(new THREE.SphereGeometry(0.8, 32, 32), new THREE.MeshPhongMaterial({color: 0xf1c40f}));
-            scene.add(ball);
+function copyOffer(){
+  navigator.clipboard.writeText(
+    document.getElementById("offer").value);
+}
 
-            const player = new THREE.Mesh(new THREE.BoxGeometry(7, 1, 3), new THREE.MeshPhongMaterial({color: 0xe74c3c}));
-            player.position.set(0, 0.5, 17);
-            scene.add(player);
+function setAnswer(){
+  const ans = JSON.parse(atob(
+    document.getElementById("answer").value));
+  pc.setRemoteDescription(ans);
+}
 
-            const ai = new THREE.Mesh(new THREE.BoxGeometry(7, 1, 3), new THREE.MeshPhongMaterial({color: 0x3498db}));
-            ai.position.set(0, 0.5, -17);
-            scene.add(ai);
+function flashWhite(){
+  flash=true;
+  setTimeout(()=>flash=false,30);
+}
 
-            camera.position.set(0, 20, 30);
-            camera.lookAt(0, 0, 0);
+function draw(){
+  ctx.fillStyle = flash ? "black" : "#4ec0ff";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
 
-            let v = { x: 0, y: 0.1, z: 0.2 };
-            let canScore = true;
+  ctx.fillStyle = flash ? "white" : "yellow";
+  ctx.beginPath();
+  ctx.arc(duck.x, duck.y, duck.r, 0, Math.PI*2);
+  ctx.fill();
 
-            function resetRound(winner) {
-                if(!canScore) return;
-                canScore = false;
-                
-                if(winner === 'PLAYER') scores.player++; else scores.ai++;
-                document.getElementById('score').innerText = `SEN: ${scores.player} | RAKİP: ${scores.ai}`;
+  requestAnimationFrame(draw);
+}
 
-                // Topu yok et ve bekle
-                ball.position.y = -10; 
-                setTimeout(() => {
-                    ball.position.set(0, 15, winner === 'PLAYER' ? -15 : 15);
-                    v = { x: 0, y: 0, z: winner === 'PLAYER' ? 0.3 : -0.3 };
-                    canScore = true;
-                }, 1500);
-            }
+function fire(){
+  dc.send("FIRE");
+  setTimeout(checkHit,50);
+}
 
-            ball.position.set(0, 15, -15);
+function checkHit(){
+  const c=document.createElement("canvas");
+  const x=c.getContext("2d");
+  c.width=video.videoWidth;
+  c.height=video.videoHeight;
+  x.drawImage(video,0,0);
 
-            function animate() {
-                requestAnimationFrame(animate);
-                if(!gameActive) return;
+  const d=x.getImageData(0,0,c.width,c.height).data;
+  let bright=0;
+  for(let i=0;i<d.length;i+=4){
+    if(d[i]>240 && d[i+1]>240 && d[i+2]>240) bright++;
+  }
 
-                // Raket Hareketleri
-                player.position.x = (phoneData.x / 3);
-                ai.position.x += (ball.position.x - ai.position.x) * 0.14;
-
-                if(canScore) {
-                    ball.position.x += v.x;
-                    ball.position.y += v.y;
-                    ball.position.z += v.z;
-                    v.y -= 0.012; // Yerçekimi
-
-                    // Yer Çarpışması
-                    if(ball.position.y < 0.8) {
-                        if(ball.position.z > 0) resetRound('AI');
-                        else resetRound('PLAYER');
-                    }
-
-                    // Oyuncu ve AI Vuruş Kontrolü (Gelişmiş)
-                    const checkPaddle = (p, isP) => {
-                        const distZ = Math.abs(ball.position.z - p.position.z);
-                        const distX = Math.abs(ball.position.x - p.position.x);
-                        
-                        if(distZ < 2.0 && distX < 4.0 && ball.position.y < 4) {
-                            v.z = isP ? -0.45 : 0.45;
-                            v.y = 0.4;
-                            v.x = (ball.position.x - p.position.x) * 0.3;
-                            ball.position.y = 4.1; // Topun takılmasını önle
-                        }
-                    }
-                    checkPaddle(player, true);
-                    checkPaddle(ai, false);
-
-                    // Yan duvarlar
-                    if(Math.abs(ball.position.x) > 12) v.x *= -1;
-                }
-                renderer.render(scene, camera);
-            }
-            animate();
-        }
-    </script>
+  alert(bright>50 ? "VURDUN!" : "KAÇTI!");
+}
+</script>
 </body>
 </html>
