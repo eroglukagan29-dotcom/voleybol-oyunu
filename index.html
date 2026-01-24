@@ -2,207 +2,251 @@
 <html lang="tr">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Duck Hunt: Hybrid Edition</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Duck Hunt: Ultimate LAN</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
-        :root { --retro-blue: #64b5f6; --retro-green: #2e7d32; --duck-yellow: #ffcc00; --nes-red: #ff4444; }
-        body { margin: 0; background: #000; font-family: 'Press Start 2P', cursive; overflow: hidden; color: white; }
-        
-        /* MENÜ TASARIMI */
-        #setup { position: absolute; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #111; z-index: 1000; }
-        .btn-group { display: flex; flex-direction: column; gap: 15px; margin-top: 20px; }
-        button { padding: 20px; font-family: 'Press Start 2P'; font-size: 0.8rem; border: 4px solid #fff; cursor: pointer; transition: 0.2s; background: #333; color: white; }
-        button:hover { background: var(--duck-yellow); color: black; transform: scale(1.05); }
-        .hidden { display: none !important; }
-        .ready-status { margin-top: 10px; font-size: 0.6rem; color: #0f0; }
+        :root { --sky: #4ec0ff; --grass: #5cb85c; --nes-red: #ff4444; --duck-yellow: #ffcc00; }
+        * { box-sizing: border-box; touch-action: none; user-select: none; }
+        body { margin: 0; background: #000; font-family: 'Press Start 2P', cursive; color: white; overflow: hidden; }
 
-        /* OYUN ALANI */
-        #game-container { position: relative; width: 100vw; height: 100vh; background: var(--retro-blue); display: none; }
-        #grass { position: absolute; bottom: 0; width: 100%; height: 20%; background: var(--retro-green); z-index: 10; border-top: 6px solid #1b5e20; }
-        
-        /* ÖRDEK */
-        #duck-target { position: absolute; width: 80px; height: 80px; z-index: 5; }
-        .hitbox { position: absolute; width: 60px; height: 60px; background: white; display: none; z-index: 100; top: 10px; left: 10px; }
-        
-        /* MOBİL KONTROLLER */
-        .mobile-ui { display: none; position: fixed; width: 100vw; height: 100vh; background: #222; z-index: 2000; text-align: center; }
-        #joystick-container { width: 200px; height: 200px; background: #444; border-radius: 50%; margin: 50px auto; position: relative; border: 5px solid #666; }
-        #joystick-knob { width: 80px; height: 80px; background: var(--duck-yellow); border-radius: 50%; position: absolute; top: 60px; left: 60px; }
-        .vak-btn { background: #fff; color: #000; padding: 30px; border-radius: 15px; font-weight: bold; margin-top: 20px; display: inline-block; }
+        /* --- GUI / MENÜ --- */
+        #menu { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: linear-gradient(#111, #333); z-index: 1000; }
+        .card { background: #222; border: 6px solid #fff; padding: 30px; text-align: center; width: 90%; max-width: 500px; box-shadow: 10px 10px 0 #000; }
+        h1 { color: var(--duck-yellow); font-size: 1.5rem; text-shadow: 4px 4px #000; }
+        button { 
+            width: 100%; padding: 20px; margin: 10px 0; font-family: 'Press Start 2P'; border: 4px solid #fff; 
+            background: #444; color: #fff; cursor: pointer; position: relative;
+        }
+        button:active { top: 4px; background: var(--nes-red); }
+        #qr-container { background: white; padding: 10px; margin: 15px auto; display: none; border-radius: 8px; }
 
-        .flash-active { background: black !important; }
-        .flash-active * { visibility: hidden !important; }
-        .flash-active .hitbox { visibility: visible !important; display: block !important; }
+        /* --- OYUN ALANI --- */
+        #game-container { position: relative; width: 100vw; height: 100vh; background: var(--sky); display: none; }
+        #grass { position: absolute; bottom: 0; width: 100%; height: 20%; background: var(--grass); z-index: 10; border-top: 6px solid #2e7d32; }
+        .stat-box { position: absolute; top: 20px; font-size: 0.8rem; z-index: 100; background: rgba(0,0,0,0.5); padding: 10px; border: 2px solid white; }
+        
+        /* ÖRDEK VE KÖPEK ANIMASYONLARI */
+        #duck { position: absolute; width: 80px; height: 80px; z-index: 5; transition: transform 0.2s; }
+        .hitbox { position: absolute; inset: 10px; background: white; display: none; border-radius: 50%; }
+        #dog { 
+            position: absolute; bottom: 15%; left: 45%; width: 100px; height: 100px; 
+            display: none; z-index: 11; transform: translateY(100px); transition: transform 0.5s;
+        }
+
+        /* MOBIL KONTROLLER */
+        .mobile-ui { display: none; position: fixed; inset: 0; background: #222; z-index: 2000; padding: 20px; text-align: center; }
+        #joystick { width: 180px; height: 180px; background: #444; border-radius: 50%; margin: 40px auto; position: relative; border: 5px solid #666; }
+        #knob { width: 70px; height: 70px; background: var(--nes-red); border-radius: 50%; position: absolute; top: 55px; left: 55px; box-shadow: 0 5px 0 #800; }
+        .action-btn { background: #fff; color: #000; padding: 25px; border-radius: 10px; margin: 10px; display: inline-block; font-size: 0.7rem; }
+
+        /* NES FLAŞ */
+        .flash { background: black !important; }
+        .flash * { visibility: hidden !important; }
+        .flash .hitbox { visibility: visible !important; display: block !important; }
     </style>
 </head>
 <body>
 
-<div id="setup">
-    <h1 id="menu-title">DUCK HUNT</h1>
-    
-    <div id="main-menu" class="btn-group">
-        <button onclick="showSubMenu(1)">1 PLAYER</button>
-        <button onclick="showSubMenu(2)">2 PLAYER</button>
+<div id="menu">
+    <div class="card" id="main-card">
+        <h1>DUCK HUNT PRO</h1>
+        <div id="mode-select">
+            <button onclick="playSound('button'); showSub(1)">1 PLAYER</button>
+            <button onclick="playSound('button'); showSub(2)">2 PLAYER (LAN)</button>
+        </div>
+        <div id="sub-menu" style="display:none;">
+            <button id="host-btn" onclick="playSound('button'); start('screen')">SCREEN (PC)</button>
+            <button id="p1-btn" onclick="playSound('button'); start('gun')">PLAYER 1 (GUN)</button>
+            <button id="p2-btn" onclick="playSound('button'); start('duck')" style="display:none;">PLAYER 2 (DUCK)</button>
+            <div id="qr-container"></div>
+            <p id="conn-status" style="font-size: 0.5rem; margin-top: 10px;"></p>
+            <button onclick="location.reload()" style="font-size: 0.5rem; background: #666;">BACK</button>
+        </div>
     </div>
-
-    <div id="sub-menu" class="btn-group hidden">
-        <button id="btn-host" onclick="init('screen')">SCREEN (PC)</button>
-        <button id="btn-p1" onclick="init('gun')">PLAYER 1 (GUN)</button>
-        <button id="btn-p2" class="hidden" onclick="init('duck')">PLAYER 2 (DUCK)</button>
-        <button id="btn-ready" class="hidden" onclick="sendReady()" style="border-color: #0f0;">READY!</button>
-        <button onclick="location.reload()" style="font-size: 0.5rem;">BACK</button>
-    </div>
-
-    <div id="conn-info" style="margin-top:20px; font-size: 0.7rem;"></div>
 </div>
 
 <div id="game-container">
-    <div style="position:absolute; top:20px; left:20px; font-size:1rem; z-index:100;">SCORE: <span id="score-val">0</span></div>
-    <div id="duck-target">
+    <div class="stat-box" style="left:20px;">SCORE: <span id="score">0</span><br>ROUND: <span id="round">1</span></div>
+    <div class="stat-box" style="right:20px; border-color: var(--nes-red);">SHOTS: <span id="shots">3</span></div>
+    
+    <div id="duck">
         <div class="hitbox"></div>
-        <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="#556b2f" /></svg>
+        <svg viewBox="0 0 100 100">
+            <ellipse cx="45" cy="55" rx="30" ry="20" fill="#4d3319" />
+            <circle cx="70" cy="40" r="14" fill="#1b5e20" />
+            <path d="M82 40 L 95 36 L 95 44 Z" fill="#ffa500" />
+        </svg>
     </div>
-    <div id="grass"></div>
+
+    <img id="dog" src="https://i.imgur.com/8P9pP3B.png" alt="dog"> <div id="grass"></div>
 </div>
 
-<div id="duck-ui" class="mobile-ui">
-    <div id="joystick-container">
-        <div id="joystick-knob"></div>
+<div id="p1-ui" class="mobile-ui">
+    <video id="cam" autoplay playsinline style="position:fixed; inset:0; width:100%; height:100%; object-fit:cover; opacity:0.3;"></video>
+    <div style="position:relative; top:60%;">
+        <div class="action-btn" style="background:var(--nes-red); color:white; border-radius:50%; width:120px; height:120px; line-height:70px;" onclick="fire()">FIRE</div>
     </div>
-    <div class="vak-btn" onclick="vakla()">VAKLA!</div>
 </div>
 
-<div id="gun-ui" class="mobile-ui">
-    <video id="gun-cam" autoplay playsinline style="width:100%; height:100%; object-fit:cover; opacity:0.3;"></video>
-    <div onclick="handleFire()" style="position:absolute; bottom:10%; left:50%; transform:translateX(-50%); padding:40px; background:red; border-radius:50%; border:5px solid white;">FIRE</div>
+<div id="p2-ui" class="mobile-ui">
+    <div id="joystick"><div id="knob"></div></div>
+    <div class="action-btn" onclick="p2Vak()">VAKLA!</div>
 </div>
 
 <script>
-let peer, conns = [], role, mode = 1, score = 0;
-let readyCount = 0;
-let duckPos = { x: 0.5, y: 0.5 };
-let isP2Active = false;
+let peer, conn, role, mode = 1;
+let score = 0, round = 1, shots = 3;
+let duckX = 0.5, duckY = 0.5, dx = 0.01, dy = 0.01;
+let isP2Active = false, isGameOver = false;
 
-function showSubMenu(m) {
+// SESLER
+const sounds = {
+    button: new Audio('button.wav'),
+    fire: new Audio('fire.wav'),
+    vak: new Audio('vak.wav'),
+    dog: new Audio('dog.wav'),
+    hit: new Audio('hit.wav')
+};
+function playSound(s) { sounds[s]?.play().catch(() => {}); }
+
+function showSub(m) {
     mode = m;
-    document.getElementById('main-menu').classList.add('hidden');
-    document.getElementById('sub-menu').classList.remove('hidden');
-    if(m === 2) document.getElementById('btn-p2').classList.remove('hidden');
+    document.getElementById('mode-select').style.display = 'none';
+    document.getElementById('sub-menu').style.display = 'block';
+    if(m === 2) document.getElementById('p2-btn').style.display = 'block';
 }
 
-function init(r) {
+function start(r) {
     role = r;
-    const id = 'DH-' + Math.floor(1000 + Math.random() * 9000);
-    peer = new Peer(id);
-    peer.on('open', () => {
-        document.getElementById('conn-info').innerText = "CODE: " + id.replace('DH-','');
-        if(role !== 'screen') {
-            let target = prompt("Enter PC Code:");
-            if(target) setupConnection(peer.connect('DH-' + target.toUpperCase()));
-            document.getElementById('btn-ready').classList.remove('hidden');
-        }
-    });
-    peer.on('connection', c => setupConnection(c));
-}
+    const roomID = "DH-" + Math.floor(1000 + Math.random() * 9000);
+    peer = new Peer(role === 'screen' ? roomID : null);
 
-function setupConnection(c) {
-    conns.push(c);
-    c.on('data', data => {
-        if(data.type === 'READY') {
-            readyCount++;
-            if(readyCount >= mode) startGame();
-        }
-        if(data.type === 'DUCK_MOVE') { 
-            duckPos = { x: data.x, y: data.y }; 
-            isP2Active = true; 
-        }
-        if(data.type === 'VAK') new Audio('vak.wav').play().catch(()=>console.log("Ses dosyası yok!"));
-        if(data.type === 'FIRE_REQ') triggerFlash();
-        if(data.type === 'HIT') handleHit();
-    });
-}
-
-function sendReady() {
-    conns[0].send({type: 'READY'});
-    document.getElementById('btn-ready').innerText = "WAITING...";
-}
-
-function startGame() {
-    document.getElementById('setup').style.display = 'none';
-    if(role === 'screen') {
-        document.getElementById('game-container').style.display = 'block';
-        gameLoop();
-    } else if(role === 'duck') {
-        document.getElementById('duck-ui').style.display = 'block';
-        initJoystick();
-    } else if(role === 'gun') {
-        document.getElementById('gun-ui').style.display = 'block';
-        startCamera();
-    }
-}
-
-// KLAVYE KONTROLÜ (WASD OTOMATİK KATILIM)
-window.addEventListener('keydown', (e) => {
-    if(role === 'screen' && ['w','a','s','d'].includes(e.key.toLowerCase())) {
-        isP2Active = true; // WASD basıldığı an Player 2 (Klavye) devralır
-        const speed = 0.02;
-        if(e.key === 'w') duckPos.y -= speed;
-        if(e.key === 's') duckPos.y += speed;
-        if(e.key === 'a') duckPos.x -= speed;
-        if(e.key === 'd') duckPos.x += speed;
-    }
-});
-
-// JOYSTICK MANTIĞI
-function initJoystick() {
-    const knob = document.getElementById('joystick-knob');
-    document.getElementById('joystick-container').ontouchmove = (e) => {
-        const touch = e.touches[0];
-        const rect = e.target.getBoundingClientRect();
-        let x = (touch.clientX - rect.left) / rect.width;
-        let y = (touch.clientY - rect.top) / rect.height;
-        conns[0].send({type: 'DUCK_MOVE', x, y});
-        knob.style.left = (x * 120) + 'px';
-        knob.style.top = (y * 120) + 'px';
-    };
-}
-
-function vakla() { conns[0].send({type: 'VAK'}); }
-
-function gameLoop() {
-    const duck = document.getElementById('duck-target');
-    let autoX = 0, autoY = 0, angle = 0;
-
-    function update() {
-        if(!isP2Active) {
-            // Otomatik Hareket
-            angle += 0.02;
-            autoX = (Math.cos(angle) * 0.3) + 0.5;
-            autoY = (Math.sin(angle * 0.5) * 0.2) + 0.4;
-            duck.style.left = (autoX * window.innerWidth) + 'px';
-            duck.style.top = (autoY * window.innerHeight) + 'px';
+    peer.on('open', (id) => {
+        if(role === 'screen') {
+            const qrBox = document.getElementById('qr-container');
+            qrBox.style.display = 'block';
+            new QRCode(qrBox, { text: window.location.href.split('?')[0] + "?join=" + id, width: 120, height: 120 });
+            document.getElementById('conn-status').innerText = "KOD: " + id;
         } else {
-            // Player 2 veya WASD Kontrolü
-            duck.style.left = (duckPos.x * window.innerWidth) + 'px';
-            duck.style.top = (duckPos.y * window.innerHeight) + 'px';
+            const urlParams = new URLSearchParams(window.location.search);
+            const joinID = urlParams.get('join') || prompt("PC KODUNU GIR:");
+            if(joinID) handleConn(peer.connect(joinID.includes('DH-') ? joinID : "DH-"+joinID));
         }
-        requestAnimationFrame(update);
-    }
-    update();
+    });
+    peer.on('connection', handleConn);
 }
 
-// Flash ve Hit fonksiyonlarını önceki sürümlerdeki gibi ekle...
+function handleConn(c) {
+    conn = c;
+    conn.on('open', () => {
+        document.getElementById('menu').style.display = 'none';
+        if(role === 'screen') {
+            document.getElementById('game-container').style.display = 'block';
+            initGame();
+        } else {
+            document.getElementById(role + '-ui').style.display = 'block';
+            if(role === 'gun') startCam();
+            if(role === 'duck') initJoystick();
+        }
+    });
+    conn.on('data', onData);
+}
+
+function onData(data) {
+    if(data.type === 'FIRE') {
+        if(shots > 0) {
+            shots--;
+            document.getElementById('shots').innerText = shots;
+            playSound('fire');
+            triggerFlash();
+            if(role === 'screen') setTimeout(checkOpticalHit, 50);
+        }
+    }
+    if(data.type === 'MOVE') { duckX = data.x; duckY = data.y; isP2Active = true; }
+    if(data.type === 'VAK') playSound('vak');
+    if(data.type === 'HIT') processHit();
+}
+
+// OYUN MANTIĞI
+function initGame() {
+    requestAnimationFrame(update);
+}
+
+function update() {
+    if(!isGameOver) {
+        const duck = document.getElementById('duck');
+        if(!isP2Active) {
+            duckX += dx * (1 + round * 0.2);
+            duckY += dy * (1 + round * 0.2);
+            if(duckX < 0.1 || duckX > 0.9) dx *= -1;
+            if(duckY < 0.1 || duckY > 0.6) dy *= -1;
+        }
+        duck.style.left = (duckX * 100) + "%";
+        duck.style.top = (duckY * 100) + "%";
+        duck.style.transform = `scaleX(${dx > 0 ? 1 : -1})`;
+        
+        if(shots <= 0) showDog();
+    }
+    requestAnimationFrame(update);
+}
+
+function fire() { conn.send({type: 'FIRE'}); if(navigator.vibrate) navigator.vibrate(50); }
+
 function triggerFlash() {
     const gc = document.getElementById('game-container');
-    gc.classList.add('flash-active');
-    setTimeout(() => gc.classList.remove('flash-active'), 100);
+    gc.classList.add('flash');
+    setTimeout(() => gc.classList.remove('flash'), 100);
 }
-function handleHit() { 
-    score += 100; document.getElementById('score-val').innerText = score;
-    document.getElementById('duck-target').style.display = 'none';
-    setTimeout(()=> { document.getElementById('duck-target').style.display = 'block'; }, 1000);
+
+function processHit() {
+    score += 100;
+    document.getElementById('score').innerText = score;
+    playSound('hit');
+    // Ördek düşme animasyonu
+    document.getElementById('duck').style.display = 'none';
+    setTimeout(() => {
+        round++;
+        shots = 3;
+        document.getElementById('round').innerText = round;
+        document.getElementById('shots').innerText = shots;
+        document.getElementById('duck').style.display = 'block';
+        duckX = 0.5; duckY = 0.5;
+    }, 1500);
+}
+
+function showDog() {
+    isGameOver = true;
+    playSound('dog');
+    const dog = document.getElementById('dog');
+    dog.style.display = 'block';
+    dog.style.transform = 'translateY(-120px)';
+    setTimeout(() => {
+        dog.style.transform = 'translateY(100px)';
+        shots = 3;
+        document.getElementById('shots').innerText = shots;
+        isGameOver = false;
+    }, 2000);
+}
+
+function initJoystick() {
+    const knob = document.getElementById('knob');
+    document.getElementById('joystick').ontouchmove = (e) => {
+        const t = e.touches[0];
+        const r = e.currentTarget.getBoundingClientRect();
+        const x = (t.clientX - r.left) / r.width;
+        const y = (t.clientY - r.top) / r.height;
+        conn.send({type: 'MOVE', x, y});
+        knob.style.left = (x * 110) + "px";
+        knob.style.top = (y * 110) + "px";
+    };
+}
+function p2Vak() { conn.send({type: 'VAK'}); }
+async function startCam() {
+    const s = await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});
+    document.getElementById('cam').srcObject = s;
 }
 </script>
 </body>
