@@ -2,120 +2,156 @@
 <html lang="tr">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Duck Hunt: Quick Link</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Duck Hunt: QR Connect</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        body { margin: 0; background: #000; color: #55ff55; font-family: 'Courier New', monospace; text-align: center; overflow: hidden; }
-        .panel { padding: 20px; border: 2px solid #55ff55; display: inline-block; margin-top: 50px; background: #111; max-width: 90%; }
-        input, button { background: #222; color: #55ff55; border: 1px solid #55ff55; padding: 10px; margin: 5px; font-size: 16px; width: 80%; }
-        button:active { background: #55ff55; color: #000; }
-        canvas { display: none; background: #4ec0ff; cursor: crosshair; width: 100vw; height: 100vh; }
-        #fireBtn { display: none; position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); width: 150px; height: 150px; border-radius: 50%; background: red; color: white; font-weight: bold; border: 5px solid white; }
+        :root { --neon: #39ff14; --retro-blue: #4ec0ff; }
+        body { margin: 0; background: #111; color: white; font-family: 'Segoe UI', sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+        #menu { background: #222; padding: 30px; border-radius: 20px; border: 4px solid var(--neon); text-align: center; z-index: 100; box-shadow: 0 0 20px rgba(57, 255, 20, 0.3); }
+        button { background: var(--neon); border: none; padding: 15px 30px; font-weight: bold; border-radius: 10px; cursor: pointer; margin: 10px; font-size: 1.1rem; transition: 0.2s; }
+        button:hover { transform: scale(1.05); filter: brightness(1.1); }
+        input { background: #333; border: 2px solid var(--neon); color: white; padding: 10px; border-radius: 8px; text-align: center; font-size: 1.2rem; width: 150px; }
+        #qrcode { background: white; padding: 10px; display: inline-block; margin-top: 15px; border-radius: 10px; }
+        canvas { position: fixed; top: 0; left: 0; display: none; background: var(--retro-blue); }
+        #fireBtn { display: none; position: fixed; bottom: 40px; width: 150px; height: 150px; border-radius: 50%; background: #ff4444; border: 8px solid white; color: white; font-weight: bold; font-size: 1.5rem; box-shadow: 0 10px 0 #cc0000; }
+        #fireBtn:active { transform: translateY(5px); box-shadow: 0 5px 0 #cc0000; }
+        .info { margin: 10px 0; color: #aaa; }
     </style>
 </head>
 <body>
 
-<div id="setup" class="panel">
-    <h2>DUCK HUNT OS</h2>
-    <div id="step1">
-        <button onclick="init('screen')">1. EKRAN OL</button>
-        <button onclick="init('gun')">2. SİLAH OL</button>
+<div id="menu">
+    <h1>DUCK HUNT</h1>
+    <div id="role-select">
+        <button onclick="startAs('screen')">📺 EKRAN OL</button><br>
+        <button onclick="startAs('gun')">🔫 SİLAH OL</button>
     </div>
-    <div id="step2" style="display:none">
-        <p>KODU OKU/YAZ:</p>
-        <input type="text" id="codeIO" placeholder="Kod buraya...">
-        <button onclick="processCode()">ONAYLA</button>
-        <p style="font-size: 12px; color: #888;">*Karşı cihazın kodunu buraya yazın.</p>
+
+    <div id="screen-setup" style="display:none">
+        <p class="info">Telefondan bu kodu girin veya QR'ı taratın:</p>
+        <h2 id="my-id" style="color:var(--neon); font-size: 2.5rem; letter-spacing: 5px;">...</h2>
+        <div id="qrcode"></div>
+    </div>
+
+    <div id="gun-setup" style="display:none">
+        <p class="info">Ekrandaki kodu yazın:</p>
+        <input type="text" id="join-id" maxlength="6" placeholder="KOD">
+        <button onclick="connectToScreen()">BAĞLAN</button>
+        <p>veya kamerayı açıp QR taratın (opsiyonel)</p>
     </div>
 </div>
 
 <canvas id="game"></canvas>
-<button id="fireBtn">ATEŞ</button>
+<button id="fireBtn">ATEŞ!</button>
 
 <script>
-let role, pc = new RTCPeerConnection(), dc;
-const io = document.getElementById('codeIO');
+let peer, conn, role;
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const fireBtn = document.getElementById('fireBtn');
 
-// 1. BAŞLATMA
-async function init(r) {
+// PeerJS Başlatma (Rastgele 4-5 haneli kısa ID)
+function initPeer(idPrefix) {
+    const shortId = Math.random().toString(36).substr(2, 4).toUpperCase();
+    peer = new Peer(idPrefix + "-" + shortId);
+    
+    peer.on('open', (id) => {
+        const displayId = id.split('-')[1];
+        if(role === 'screen') {
+            document.getElementById('my-id').innerText = displayId;
+            new QRCode(document.getElementById("qrcode"), {
+                text: window.location.href.split('?')[0] + "?join=" + id,
+                width: 128, height: 128
+            });
+        }
+    });
+
+    peer.on('connection', (c) => {
+        conn = c;
+        setupGame();
+    });
+}
+
+function startAs(r) {
     role = r;
-    document.getElementById('step1').style.display = 'none';
-    document.getElementById('step2').style.display = 'block';
-
-    if (role === 'gun') {
-        dc = pc.createDataChannel("shot");
-        setupDC();
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
+    document.getElementById('role-select').style.display = 'none';
+    
+    if(role === 'screen') {
+        document.getElementById('screen-setup').style.display = 'block';
+        initPeer('DUCK');
     } else {
-        pc.ondatachannel = e => { dc = e.channel; setupDC(); };
+        document.getElementById('gun-setup').style.display = 'block';
+        initPeer('GUN');
     }
-
-    pc.onicecandidate = e => {
-        if (!e.candidate) {
-            // Sadece gerekli olan SDP kısmını kısaltarak veriyoruz
-            io.value = btoa(pc.localDescription.sdp).substring(0, 100); 
-            console.log("Paylaşılacak kısa kod:", io.value);
-            alert("Kendi kodun kutuda oluştu. Bunu kopyalayıp diğerine yaz.");
-        }
-    };
 }
 
-// 2. KOD İŞLEME (MANUEL OKU-YAZ)
-async function processCode() {
-    const raw = io.value;
-    // Not: Gerçek bir kısaltma için SDP sıkıştırma gerekir, 
-    // ama kopyala-yapıştır en güvenli "sunucusuz" yoldur.
-    // Eğer sunucu eklemek istersen "PeerJS" kütüphanesi ile 4 haneli ID yapabiliriz.
-    
-    try {
-        const desc = new RTCSessionDescription({
-            type: (role === 'screen' ? 'offer' : 'answer'),
-            sdp: atob(raw) 
-        });
-        await pc.setRemoteDescription(desc);
-        if (role === 'screen') {
-            const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
-        }
-    } catch(e) { alert("Kod hatalı!"); }
+// URL'den QR ile otomatik bağlanma kontrolü
+const urlParams = new URLSearchParams(window.location.search);
+if(urlParams.has('join')) {
+    startAs('gun');
+    setTimeout(() => {
+        document.getElementById('join-id').value = urlParams.get('join').split('-')[1];
+        connectToScreen();
+    }, 1000);
 }
 
-function setupDC() {
-    dc.onopen = () => {
-        document.getElementById('setup').style.display = 'none';
-        if(role === 'screen') startGame();
-        else startGun();
-    };
-    dc.onmessage = e => { if(e.data === 'BANG') hitEffect(); };
+function connectToScreen() {
+    const targetId = "DUCK-" + document.getElementById('join-id').value.toUpperCase();
+    conn = peer.connect(targetId);
+    conn.on('open', setupGame);
 }
 
-// 3. OYUN VE SİLAH MANTIĞI
-function startGame() {
-    const cvs = document.getElementById('game');
-    const ctx = cvs.getContext('2d');
-    cvs.style.display = 'block';
-    cvs.width = window.innerWidth; cvs.height = window.innerHeight;
-    
-    let x = 0, y = 100, flash = false;
-    function draw() {
-        ctx.fillStyle = flash ? "white" : "#4ec0ff";
-        ctx.fillRect(0,0,cvs.width, cvs.height);
-        if(!flash) {
-            ctx.fillStyle = "yellow";
-            ctx.beginPath(); ctx.arc(x % cvs.width, y, 30, 0, 7); ctx.fill();
-            x += 5;
-        }
-        requestAnimationFrame(draw);
+function setupGame() {
+    document.getElementById('menu').style.display = 'none';
+    if(role === 'screen') {
+        canvas.style.display = 'block';
+        resize();
+        gameLoop();
+    } else {
+        fireBtn.style.display = 'block';
+        fireBtn.onclick = () => conn.send('BANG');
     }
-    window.hitEffect = () => { flash = true; setTimeout(()=>flash=false, 40); };
-    draw();
 }
 
-function startGun() {
-    document.getElementById('fireBtn').style.display = 'block';
-    document.getElementById('fireBtn').onclick = () => dc.send('BANG');
+// OYUN MOTORU
+let duck = { x: 50, y: 50, dx: 4, dy: 3 };
+let flash = false;
+
+function gameLoop() {
+    ctx.fillStyle = flash ? "white" : "#4ec0ff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    if(!flash) {
+        duck.x += duck.dx;
+        duck.y += duck.dy;
+        if(duck.x < 0 || duck.x > canvas.width) duck.dx *= -1;
+        if(duck.y < 0 || duck.y > canvas.height * 0.7) duck.dy *= -1;
+
+        ctx.fillStyle = "yellow";
+        ctx.beginPath();
+        ctx.arc(duck.x, duck.y, 40, 0, Math.PI*2);
+        ctx.fill();
+    }
+    requestAnimationFrame(gameLoop);
 }
+
+// Mesaj Alındığında (Ekran Tarafı)
+peer.on('connection', (c) => {
+    c.on('data', (data) => {
+        if(data === 'BANG') {
+            flash = true;
+            setTimeout(() => flash = false, 50);
+        }
+    });
+});
+
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
 </script>
 </body>
 </html>
