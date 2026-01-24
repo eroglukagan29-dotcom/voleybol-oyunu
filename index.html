@@ -1,225 +1,184 @@
-
 <!DOCTYPE html>
 <html lang="tr">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Duck Hunt: Pro Hunter</title>
+    <title>Duck Hunt: Modern Arcade</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        body { margin: 0; background: #1a1a1a; color: #fff; font-family: 'Courier New', Courier, monospace; text-align: center; overflow: hidden; }
-        .box { background: #222; padding: 20px; border-radius: 15px; display: inline-block; margin-top: 50px; border: 3px solid #ffcc00; }
-        button { background: #ffcc00; color: #000; border: none; padding: 15px 25px; font-weight: bold; border-radius: 10px; cursor: pointer; margin: 10px; }
-        canvas { display: none; background: #4ec0ff; width: 100vw; height: 100vh; }
-        #fireBtn { display: none; position: fixed; bottom: 50px; left: 50%; transform: translateX(-50%); width: 160px; height: 160px; border-radius: 50%; background: #cc0000; border: 8px solid #fff; color: white; font-size: 24px; font-weight: bold; box-shadow: 0 10px 20px rgba(0,0,0,0.5); }
-        #fireBtn:active { transform: translateX(-50%) scale(0.95); background: #ff0000; }
-        #score-board { position: fixed; top: 10px; left: 10px; font-size: 24px; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; color: #39ff14; display: none; }
-        #video-hidden { display: none; }
+        :root {
+            --neon-green: #39ff14;
+            --arcade-red: #ff003c;
+            --ui-bg: rgba(0, 0, 0, 0.7);
+        }
+        body { margin: 0; background: #050505; color: white; font-family: 'Orbitron', sans-serif; overflow: hidden; }
+        
+        /* MODERN HUD */
+        #hud {
+            position: fixed; top: 20px; left: 20px; right: 20px;
+            display: flex; justify-content: space-between;
+            z-index: 10; pointer-events: none;
+            display: none;
+        }
+        .stat-box {
+            background: var(--ui-bg);
+            padding: 15px 25px;
+            border-left: 5px solid var(--neon-green);
+            border-radius: 5px;
+            font-size: 20px;
+            box-shadow: 0 0 15px rgba(57, 255, 20, 0.2);
+        }
+        #ammo-bar { color: var(--arcade-red); font-size: 30px; }
+
+        /* BAĞLANTI PANELİ */
+        #setup-ui {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: #111; padding: 40px; border-radius: 20px;
+            border: 2px solid var(--neon-green); text-align: center;
+        }
+        
+        canvas { display: none; background: linear-gradient(to bottom, #4ec0ff 0%, #a6e3ff 100%); }
+        
+        #fireBtn {
+            display: none; position: fixed; bottom: 50px; left: 50%; transform: translateX(-50%);
+            width: 180px; height: 180px; border-radius: 50%;
+            background: radial-gradient(circle, #ff003c, #990024);
+            border: 10px solid #eee; color: white; font-size: 28px;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.6);
+        }
     </style>
 </head>
 <body>
 
-<div id="ui" class="box">
-    <h2 style="color:#ffcc00">DUCK HUNT PRO</h2>
-    <div id="role-select">
-        <button onclick="start('screen')">📺 EKRAN (PC)</button>
-        <button onclick="start('gun')">🔫 SİLAH (TELEFON)</button>
-    </div>
-    <div id="display-area" style="display:none">
-        <h1 id="id-show" style="letter-spacing: 5px; color: #39ff14;">----</h1>
-        <div id="qrcode" style="background: white; padding: 5px; display: inline-block;"></div>
-        <div id="gun-input" style="display:none">
-            <input type="text" id="target-id" placeholder="KOD" style="font-size:20px; width:100px; padding:10px; text-align:center">
-            <button onclick="connect()">BAĞLAN</button>
-        </div>
-        <p id="status">Hazırlanıyor...</p>
-    </div>
+<div id="hud">
+    <div class="stat-box">SCORE: <span id="score">0000</span></div>
+    <div id="ammo-bar">● ● ●</div>
+    <div class="stat-box" id="p2-status">P2: BEKLENİYOR...</div>
 </div>
 
-<div id="score-board">SCORE: 0</div>
+<div id="setup-ui">
+    <h1 style="color: var(--neon-green)">DUCK HUNT PRO</h1>
+    <button onclick="start('screen')" style="padding:15px; cursor:pointer">📺 EKRANI BAŞLAT</button>
+    <button onclick="start('gun')" style="padding:15px; cursor:pointer">🔫 SİLAHI BAŞLAT</button>
+    <div id="conn-info" style="margin-top:20px"></div>
+</div>
+
 <canvas id="game"></canvas>
-<video id="video-hidden" autoplay playsinline></video>
-<button id="fireBtn">ATEŞ!</button>
+<button id="fireBtn">FIRE</button>
 
 <script>
 let peer, conn, role;
 let score = 0;
-const status = document.getElementById('status');
-const video = document.getElementById('video-hidden');
+let ammo = 3;
+let gamepadConnected = false;
+
+// ASSET YÜKLEME (Burası ileride resim eklemek için hazır)
+const assets = {
+    duck: new Image(),
+    bg: new Image()
+};
+// assets.duck.src = 'duck_sprite.png'; // Buraya kendi linkini koyabilirsin
 
 function start(r) {
     role = r;
-    document.getElementById('role-select').style.display = 'none';
-    document.getElementById('display-area').style.display = 'block';
-    
+    document.getElementById('setup-ui').style.display = 'none';
     peer = new Peer('DH-' + Math.floor(1000 + Math.random() * 9000));
-
+    
     peer.on('open', (id) => {
-        const shortId = id.replace('DH-', '');
-        document.getElementById('id-show').innerText = shortId;
-        if(role === 'screen') {
-            new QRCode(document.getElementById("qrcode"), { text: window.location.href.split('?')[0] + "?join=" + shortId, width: 120, height: 120 });
-        } else {
-            document.getElementById('gun-input').style.display = 'block';
-            document.getElementById('qrcode').style.display = 'none';
-            // Silah tarafında kamerayı hazırla
-            navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(s => video.srcObject = s);
+        document.getElementById('setup-ui').style.display = 'block';
+        document.getElementById('conn-info').innerHTML = `KOD: <b style="font-size:30px; color:var(--neon-green)">${id.replace('DH-','')}</b>`;
+        if(role === 'gun') {
+            let target = prompt("Ekrandaki kodu girin:");
+            if(target) {
+                conn = peer.connect('DH-' + target.toUpperCase());
+                setupConn();
+            }
         }
     });
-
     peer.on('connection', (c) => { conn = c; setupConn(); });
-}
-
-function connect() {
-    conn = peer.connect("DH-" + document.getElementById('target-id').value.toUpperCase(), { reliable: true });
-    setupConn();
 }
 
 function setupConn() {
     conn.on('open', () => {
-        document.getElementById('ui').style.display = 'none';
-        if(role === 'screen') {
-            document.getElementById('score-board').style.display = 'block';
-            initGame();
-        } else {
-            document.getElementById('fireBtn').style.display = 'block';
-        }
+        document.getElementById('setup-ui').style.display = 'none';
+        document.getElementById('hud').style.display = 'flex';
+        if(role === 'screen') initGame();
+        else document.getElementById('fireBtn').style.display = 'block';
     });
-
-    conn.on('data', (data) => {
-        if(data === 'SHOT_REQ') window.flashScreen();
-        if(data === 'HIT' && role === 'screen') window.registerHit();
+    conn.on('data', data => {
+        if(data === 'SHOT') window.shoot();
     });
 }
 
-// OYUN MOTORU (EKRAN TARAFINI BU ŞEKİLDE GÜNCELLE)
+// GAMEPAD KONTROLÜ
+window.addEventListener("gamepadconnected", () => { 
+    gamepadConnected = true; 
+    document.getElementById('p2-status').innerText = "P2: GAMEPAD BAĞLI";
+});
+
 function initGame() {
     const cvs = document.getElementById('game');
     const ctx = cvs.getContext('2d');
     cvs.style.display = 'block';
-    cvs.width = window.innerWidth; 
-    cvs.height = window.innerHeight;
-    
-    // Ördek başlangıç değerleri
-    let duck = { 
-        x: cvs.width / 2, 
-        y: cvs.height - 100, 
-        dx: 4, 
-        dy: -4, 
-        r: 35, 
-        hit: false, 
-        falling: false 
-    };
-    
+    cvs.width = window.innerWidth; cvs.height = window.innerHeight;
+
+    let duck = { x: 300, y: 300, r: 40, hit: false, speed: 5 };
     let flash = false;
 
-    window.flashScreen = () => { 
-        flash = true; 
-        setTimeout(() => flash = false, 70); 
-    };
-
-    window.registerHit = () => {
-        if (duck.hit) return; // Zaten vurulmuşsa tekrar vurulmasın
-        duck.hit = true;
-        score += 100;
-        document.getElementById('score-board').innerText = "SCORE: " + score;
-        
-        // Vurulunca kısa bir duraksama, sonra düşüş
-        duck.dx = 0;
-        duck.dy = 0;
-        
+    window.shoot = () => {
+        flash = true;
+        // Basit mesafe kontrolü (Silahın vurduğunu varsayıyoruz)
+        // Eğer telefon kamerasını kullanmıyorsak buraya tıklanan yer kontrolü gelebilir
         setTimeout(() => {
-            duck.falling = true;
-            duck.dy = 10; // Hızlıca düş
-        }, 300);
+            flash = false;
+            if(Math.random() > 0.5) { // Şimdilik %50 şansla vurulma
+                duck.hit = true;
+                score += 100;
+                document.getElementById('score').innerText = score.toString().padStart(4, '0');
+                setTimeout(() => { duck.hit = false; duck.y = cvs.height; }, 1000);
+            }
+        }, 80);
     };
 
-    function resetDuck() {
-        duck.x = Math.random() * (cvs.width - 100) + 50;
-        duck.y = cvs.height - 50;
-        duck.hit = false;
-        duck.falling = false;
-        // Puan arttıkça hızlanan dinamik hız
-        let speed = 4 + (score / 1000);
-        duck.dx = (Math.random() > 0.5 ? speed : -speed);
-        duck.dy = -speed;
+    function update() {
+        // Gamepad ile Ördek Kontrolü
+        if (gamepadConnected) {
+            const gp = navigator.getGamepads()[0];
+            if (gp) {
+                duck.x += gp.axes[0] * 10; // Sol Analog Yatay
+                duck.y += gp.axes[1] * 10; // Sol Analog Dikey
+            }
+        } else if (!duck.hit) {
+            // Otomatik Hareket (Eğer gamepad yoksa)
+            duck.x += duck.speed;
+            if(duck.x > cvs.width || duck.x < 0) duck.speed *= -1;
+        }
+
+        if(duck.hit) duck.y += 10;
     }
 
     function draw() {
-        // Arka plan rengi (Vurulma anında beyaz, normalde gökyüzü)
         ctx.fillStyle = flash ? "white" : "#4ec0ff";
-        ctx.fillRect(0, 0, cvs.width, cvs.height);
+        ctx.fillRect(0,0,cvs.width, cvs.height);
 
-        if (!flash) {
-            // Ördek Hareketi
-            duck.x += duck.dx;
-            duck.y += duck.dy;
-
-            // Ekran sınırlarından sekme (Vurulmamışsa)
-            if (!duck.hit) {
-                if (duck.x < 0 || duck.x > cvs.width) duck.dx *= -1;
-                if (duck.y < 0) duck.dy *= -1;
-                // Ördek çok aşağı inerse (kaçarsa) resetle
-                if (duck.y > cvs.height) resetDuck();
-            }
-
-            // Ördek yere düştüyse resetle
-            if (duck.falling && duck.y > cvs.height) {
-                resetDuck();
-            }
-
-            // Görselleştirme
-            ctx.save();
-            ctx.translate(duck.x, duck.y);
+        if(!flash) {
+            ctx.fillStyle = duck.hit ? "red" : "yellow";
+            ctx.beginPath(); ctx.arc(duck.x, duck.y, duck.r, 0, Math.PI*2); ctx.fill();
             
-            if (duck.hit && !duck.falling) {
-                // Vurulma anı (şaşkın ördek)
-                ctx.fillStyle = "red";
-                ctx.fillRect(-20, -20, 40, 40);
-                ctx.fillStyle = "white";
-                ctx.fillText("X X", -10, 5);
-            } else {
-                // Normal ördek veya düşen ördek
-                ctx.fillStyle = duck.falling ? "#8B4513" : "yellow";
-                ctx.beginPath();
-                ctx.arc(0, 0, duck.r, 0, Math.PI * 2);
-                ctx.fill();
-                // Gaga
-                ctx.fillStyle = "orange";
-                ctx.fillRect(20, -5, 15, 10);
-            }
-            ctx.restore();
+            // Kanat çırpma simülasyonu
+            ctx.fillStyle = "black";
+            ctx.fillRect(duck.x - 45, duck.y - 5, 20, 10);
+            ctx.fillRect(duck.x + 25, duck.y - 5, 20, 10);
         }
+        update();
         requestAnimationFrame(draw);
     }
-    resetDuck(); // Oyunu başlat
     draw();
 }
-// SİLAH KONTROLÜ (TELEFON)
+
+// SİLAH TETİĞİ
 document.getElementById('fireBtn').onclick = () => {
-    if(!conn || !conn.open) return;
-    conn.send('SHOT_REQ'); // Ekranı parlat
-
-    // Parlama anında kamerayı analiz et
-    setTimeout(() => {
-        const tempCvs = document.createElement('canvas');
-        tempCvs.width = video.videoWidth;
-        tempCvs.height = video.videoHeight;
-        const tCtx = tempCvs.getContext('2d');
-        tCtx.drawImage(video, 0, 0);
-        
-        const pixels = tCtx.getImageData(0,0, tempCvs.width, tempCvs.height).data;
-        let bright = 0;
-        for(let i=0; i<pixels.length; i+=20) { // Performans için her piksele bakma
-            if(pixels[i] > 220 && pixels[i+1] > 220 && pixels[i+2] > 220) bright++;
-        }
-
-        if(bright > 30) { // Eğer yeterince beyazlık gördüyse
-            conn.send('HIT');
-            if(navigator.vibrate) navigator.vibrate(200);
-        }
-    }, 30);
+    if(conn && conn.open) conn.send('SHOT');
 };
 </script>
 </body>
