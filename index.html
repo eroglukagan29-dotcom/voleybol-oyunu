@@ -3,183 +3,133 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Duck Hunt: Modern Arcade</title>
+    <title>Duck Hunt: Vector Edition</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        :root {
-            --neon-green: #39ff14;
-            --arcade-red: #ff003c;
-            --ui-bg: rgba(0, 0, 0, 0.7);
-        }
-        body { margin: 0; background: #050505; color: white; font-family: 'Orbitron', sans-serif; overflow: hidden; }
+        :root { --sky: #4ec0ff; --grass: #5cb85c; --duck: #ffcc00; }
+        body { margin: 0; background: #111; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
         
-        /* MODERN HUD */
-        #hud {
-            position: fixed; top: 20px; left: 20px; right: 20px;
-            display: flex; justify-content: space-between;
-            z-index: 10; pointer-events: none;
-            display: none;
-        }
-        .stat-box {
-            background: var(--ui-bg);
-            padding: 15px 25px;
-            border-left: 5px solid var(--neon-green);
-            border-radius: 5px;
-            font-size: 20px;
-            box-shadow: 0 0 15px rgba(57, 255, 20, 0.2);
-        }
-        #ammo-bar { color: var(--arcade-red); font-size: 30px; }
+        /* OYUN ALANI */
+        #game-container { position: relative; width: 100vw; height: 100vh; background: var(--sky); display: none; }
+        #grass { position: absolute; bottom: 0; width: 100%; height: 20%; background: var(--grass); border-top: 5px solid #4a9e4a; z-index: 10; }
+        
+        /* MODERN UI */
+        #setup { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: white; background: rgba(0,0,0,0.8); padding: 40px; border-radius: 20px; border: 2px solid var(--duck); }
+        button { background: var(--duck); border: none; padding: 15px 30px; font-weight: bold; border-radius: 10px; cursor: pointer; margin: 10px; font-size: 1rem; }
+        
+        /* ÖRDEK (SVG Animasyonlu) */
+        .duck { position: absolute; width: 80px; height: 80px; transition: transform 0.1s; pointer-events: none; }
+        .wing { fill: #fff; animation: flap 0.2s infinite alternate; transform-origin: center; }
+        @keyframes flap { from { transform: scaleY(1); } to { transform: scaleY(-1); } }
+        
+        .hit { animation: spin 0.5s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-        /* BAĞLANTI PANELİ */
-        #setup-ui {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: #111; padding: 40px; border-radius: 20px;
-            border: 2px solid var(--neon-green); text-align: center;
-        }
-        
-        canvas { display: none; background: linear-gradient(to bottom, #4ec0ff 0%, #a6e3ff 100%); }
-        
-        #fireBtn {
-            display: none; position: fixed; bottom: 50px; left: 50%; transform: translateX(-50%);
-            width: 180px; height: 180px; border-radius: 50%;
-            background: radial-gradient(circle, #ff003c, #990024);
-            border: 10px solid #eee; color: white; font-size: 28px;
-            box-shadow: 0 15px 30px rgba(0,0,0,0.6);
-        }
+        #fireBtn { display: none; position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); width: 150px; height: 150px; border-radius: 50%; background: #ff4444; border: 8px solid white; color: white; font-weight: bold; z-index: 100; }
     </style>
 </head>
 <body>
 
-<div id="hud">
-    <div class="stat-box">SCORE: <span id="score">0000</span></div>
-    <div id="ammo-bar">● ● ●</div>
-    <div class="stat-box" id="p2-status">P2: BEKLENİYOR...</div>
+<div id="setup">
+    <h1>DUCK HUNT</h1>
+    <div id="menu">
+        <button onclick="init('screen')">📺 EKRAN OL</button>
+        <button onclick="init('gun')">🔫 SİLAH OL</button>
+    </div>
+    <p id="conn-code" style="font-size: 2rem; color: var(--duck); margin-top: 20px;"></p>
 </div>
 
-<div id="setup-ui">
-    <h1 style="color: var(--neon-green)">DUCK HUNT PRO</h1>
-    <button onclick="start('screen')" style="padding:15px; cursor:pointer">📺 EKRANI BAŞLAT</button>
-    <button onclick="start('gun')" style="padding:15px; cursor:pointer">🔫 SİLAHI BAŞLAT</button>
-    <div id="conn-info" style="margin-top:20px"></div>
+<div id="game-container">
+    <div id="hud" style="position: absolute; top: 20px; left: 20px; font-size: 24px; font-weight: bold; color: white; z-index: 20;">SCORE: <span id="score">0</span></div>
+    <div id="duck-target" class="duck">
+        <svg viewBox="0 0 100 100">
+            <ellipse cx="50" cy="50" rx="35" ry="25" fill="#556b2f" />
+            <circle cx="70" cy="40" r="15" fill="#556b2f" />
+            <path class="wing" d="M30 50 Q 10 20 30 10" stroke="white" stroke-width="2" fill="white" />
+            <path d="M85 40 L 95 35 L 95 45 Z" fill="#ffa500" />
+            <circle cx="75" cy="35" r="3" fill="black" />
+        </svg>
+    </div>
+    <div id="grass"></div>
 </div>
 
-<canvas id="game"></canvas>
-<button id="fireBtn">FIRE</button>
+<button id="fireBtn">ATEŞ!</button>
 
 <script>
-let peer, conn, role;
-let score = 0;
-let ammo = 3;
-let gamepadConnected = false;
+let peer, conn, role, score = 0;
+const duckEl = document.getElementById('duck-target');
+const scoreEl = document.getElementById('score');
 
-// ASSET YÜKLEME (Burası ileride resim eklemek için hazır)
-const assets = {
-    duck: new Image(),
-    bg: new Image()
-};
-// assets.duck.src = 'duck_sprite.png'; // Buraya kendi linkini koyabilirsin
-
-function start(r) {
+function init(r) {
     role = r;
-    document.getElementById('setup-ui').style.display = 'none';
-    peer = new Peer('DH-' + Math.floor(1000 + Math.random() * 9000));
-    
-    peer.on('open', (id) => {
-        document.getElementById('setup-ui').style.display = 'block';
-        document.getElementById('conn-info').innerHTML = `KOD: <b style="font-size:30px; color:var(--neon-green)">${id.replace('DH-','')}</b>`;
+    const id = 'DH-' + Math.floor(1000 + Math.random() * 9000);
+    peer = new Peer(id);
+
+    peer.on('open', () => {
+        document.getElementById('conn-code').innerText = id.replace('DH-','');
         if(role === 'gun') {
-            let target = prompt("Ekrandaki kodu girin:");
-            if(target) {
-                conn = peer.connect('DH-' + target.toUpperCase());
-                setupConn();
-            }
+            let t = prompt("Kodu girin:");
+            if(t) { conn = peer.connect('DH-' + t.toUpperCase()); setupConn(); }
         }
     });
-    peer.on('connection', (c) => { conn = c; setupConn(); });
+    peer.on('connection', c => { conn = c; setupConn(); });
 }
 
 function setupConn() {
     conn.on('open', () => {
-        document.getElementById('setup-ui').style.display = 'none';
-        document.getElementById('hud').style.display = 'flex';
-        if(role === 'screen') initGame();
-        else document.getElementById('fireBtn').style.display = 'block';
+        document.getElementById('setup').style.display = 'none';
+        if(role === 'screen') {
+            document.getElementById('game-container').style.display = 'block';
+            runGame();
+        } else {
+            document.getElementById('fireBtn').style.display = 'block';
+            document.getElementById('fireBtn').onclick = () => conn.send('BANG');
+        }
     });
-    conn.on('data', data => {
-        if(data === 'SHOT') window.shoot();
-    });
+    conn.on('data', d => { if(d === 'BANG') window.checkHit(); });
 }
 
-// GAMEPAD KONTROLÜ
-window.addEventListener("gamepadconnected", () => { 
-    gamepadConnected = true; 
-    document.getElementById('p2-status').innerText = "P2: GAMEPAD BAĞLI";
-});
+function runGame() {
+    let x = 100, y = 100, dx = 6, dy = 4, isHit = false;
+    
+    window.checkHit = () => {
+        // Ekran parlaması (Geri bildirim için)
+        document.getElementById('game-container').style.filter = 'brightness(3)';
+        setTimeout(() => document.getElementById('game-container').style.filter = 'none', 50);
 
-function initGame() {
-    const cvs = document.getElementById('game');
-    const ctx = cvs.getContext('2d');
-    cvs.style.display = 'block';
-    cvs.width = window.innerWidth; cvs.height = window.innerHeight;
-
-    let duck = { x: 300, y: 300, r: 40, hit: false, speed: 5 };
-    let flash = false;
-
-    window.shoot = () => {
-        flash = true;
-        // Basit mesafe kontrolü (Silahın vurduğunu varsayıyoruz)
-        // Eğer telefon kamerasını kullanmıyorsak buraya tıklanan yer kontrolü gelebilir
-        setTimeout(() => {
-            flash = false;
-            if(Math.random() > 0.5) { // Şimdilik %50 şansla vurulma
-                duck.hit = true;
-                score += 100;
-                document.getElementById('score').innerText = score.toString().padStart(4, '0');
-                setTimeout(() => { duck.hit = false; duck.y = cvs.height; }, 1000);
-            }
-        }, 80);
+        // Vurulma mantığı (Basit alan kontrolü)
+        if(!isHit) {
+            isHit = true;
+            duckEl.classList.add('hit');
+            score += 100;
+            scoreEl.innerText = score;
+            
+            setTimeout(() => {
+                isHit = false;
+                duckEl.classList.remove('hit');
+                x = Math.random() * (window.innerWidth - 100);
+                y = window.innerHeight;
+                dx = (6 + score/500) * (Math.random() > 0.5 ? 1 : -1);
+            }, 1000);
+        }
     };
 
-    function update() {
-        // Gamepad ile Ördek Kontrolü
-        if (gamepadConnected) {
-            const gp = navigator.getGamepads()[0];
-            if (gp) {
-                duck.x += gp.axes[0] * 10; // Sol Analog Yatay
-                duck.y += gp.axes[1] * 10; // Sol Analog Dikey
-            }
-        } else if (!duck.hit) {
-            // Otomatik Hareket (Eğer gamepad yoksa)
-            duck.x += duck.speed;
-            if(duck.x > cvs.width || duck.x < 0) duck.speed *= -1;
+    function loop() {
+        if(!isHit) {
+            x += dx; y += dy;
+            if(x < 0 || x > window.innerWidth - 80) dx *= -1;
+            if(y < 0 || y > window.innerHeight * 0.7) dy *= -1;
+            duckEl.style.transform = `scaleX(${dx > 0 ? 1 : -1})`;
+        } else {
+            y += 10; // Düşüş
         }
-
-        if(duck.hit) duck.y += 10;
+        
+        duckEl.style.left = x + 'px';
+        duckEl.style.top = y + 'px';
+        requestAnimationFrame(loop);
     }
-
-    function draw() {
-        ctx.fillStyle = flash ? "white" : "#4ec0ff";
-        ctx.fillRect(0,0,cvs.width, cvs.height);
-
-        if(!flash) {
-            ctx.fillStyle = duck.hit ? "red" : "yellow";
-            ctx.beginPath(); ctx.arc(duck.x, duck.y, duck.r, 0, Math.PI*2); ctx.fill();
-            
-            // Kanat çırpma simülasyonu
-            ctx.fillStyle = "black";
-            ctx.fillRect(duck.x - 45, duck.y - 5, 20, 10);
-            ctx.fillRect(duck.x + 25, duck.y - 5, 20, 10);
-        }
-        update();
-        requestAnimationFrame(draw);
-    }
-    draw();
+    loop();
 }
-
-// SİLAH TETİĞİ
-document.getElementById('fireBtn').onclick = () => {
-    if(conn && conn.open) conn.send('SHOT');
-};
 </script>
 </body>
 </html>
