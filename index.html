@@ -3,167 +3,211 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Duck Hunt: Retro Tech Edition</title>
+    <title>Duck Hunt: Ultimate Arcade</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
-        :root { --retro-blue: #64b5f6; --retro-green: #2e7d32; }
-        body { margin: 0; background: #000; font-family: 'Courier New', monospace; overflow: hidden; color: white; }
+        :root { 
+            --retro-blue: #64b5f6; 
+            --retro-green: #2e7d32; 
+            --duck-yellow: #ffcc00;
+            --nes-red: #ff4444;
+        }
         
+        body { margin: 0; background: #111; font-family: 'Press Start 2P', cursive; overflow: hidden; color: white; }
+        
+        /* MODERN RETRO MENU */
+        #setup { 
+            position: absolute; width: 100%; height: 100%; display: flex; flex-direction: column; 
+            align-items: center; justify-content: center; background: linear-gradient(0deg, #111 0%, #333 100%);
+            z-index: 1000; text-align: center;
+        }
+        
+        .title { font-size: 3rem; color: var(--duck-yellow); text-shadow: 5px 5px #000; margin-bottom: 50px; }
+        
+        .btn-group { display: flex; flex-direction: column; gap: 20px; }
+        
+        button { 
+            padding: 20px 40px; font-family: 'Press Start 2P'; font-size: 1rem; border: 4px solid #fff;
+            cursor: pointer; transition: 0.2s; position: relative;
+        }
+        
+        .btn-screen { background: #4a90e2; color: white; }
+        .btn-p1 { background: var(--nes-red); color: white; }
+        .btn-p2 { background: var(--duck-yellow); color: #000; }
+        button:hover { transform: scale(1.1); box-shadow: 0 0 20px var(--duck-yellow); }
+
         /* OYUN ALANI */
         #game-container { position: relative; width: 100vw; height: 100vh; background: var(--retro-blue); display: none; }
-        #grass { position: absolute; bottom: 0; width: 100%; height: 20%; background: var(--retro-green); z-index: 10; border-top: 4px solid #1b5e20; }
+        #grass { position: absolute; bottom: 0; width: 100%; height: 20%; background: var(--retro-green); z-index: 10; border-top: 8px solid #1b5e20; }
         
-        /* ÖRDEK VE HİTBOX (BEYAZ KUTU) */
-        #duck-target { position: absolute; width: 80px; height: 80px; z-index: 5; }
-        .hitbox { position: absolute; width: 60px; height: 60px; background: white; display: none; z-index: 100; top: 10px; left: 10px; }
+        /* ÖRDEK VE HİTBOX */
+        #duck-target { position: absolute; width: 100px; height: 100px; z-index: 5; }
+        .hitbox { position: absolute; width: 80px; height: 80px; background: white; display: none; z-index: 100; top: 10px; left: 10px; border-radius: 10px; }
         
-        /* SİLAH ARAYÜZÜ (TELEFON) */
-        #gun-ui { display: none; position: fixed; width: 100vw; height: 100vh; text-align: center; }
-        #video-preview { width: 100%; height: 100%; object-fit: cover; opacity: 0.3; }
-        #fire-trigger { position: absolute; bottom: 50px; left: 50%; transform: translateX(-50%); width: 150px; height: 150px; border-radius: 50%; background: red; border: 10px solid white; font-weight: bold; font-size: 1.5rem; color: white; z-index: 10; }
+        /* KONTROL PANELİ (TELEFONLAR) */
+        .mobile-ui { display: none; position: fixed; width: 100vw; height: 100vh; background: #222; z-index: 2000; }
+        #joystick-area { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: radial-gradient(#444, #111); }
+        .fire-circle { width: 200px; height: 200px; background: var(--nes-red); border-radius: 50%; border: 10px solid white; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
 
-        /* SKOR VE MESAJLAR */
-        #ui-layer { position: absolute; top: 20px; width: 100%; text-align: center; font-size: 2rem; z-index: 200; pointer-events: none; }
-        #setup { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #222; padding: 30px; border: 4px solid #fff; z-index: 1000; }
+        /* NES FLASH EFFECT */
+        .flash-active { background: black !important; }
+        .flash-active * { visibility: hidden !important; }
+        .flash-active .hitbox { visibility: visible !important; display: block !important; }
         
-        /* KARARMA EFEKTİ */
-        .flash-dark { background: black !important; }
-        .flash-dark * { visibility: hidden !important; }
-        .flash-dark .hitbox { visibility: visible !important; display: block !important; }
+        #conn-info { margin-top: 30px; font-size: 0.8rem; color: #aaa; }
     </style>
 </head>
 <body>
 
 <div id="setup">
-    <h1>DUCK HUNT</h1>
-    <button onclick="init('screen')" style="padding: 20px; background: #ffcc00; font-weight: bold;">📺 EKRAN OL</button>
-    <button onclick="init('gun')" style="padding: 20px; background: #ffcc00; font-weight: bold;">🔫 SİLAH OL</button>
-    <h2 id="conn-code"></h2>
+    <div class="title">DUCK HUNT<br><span style="font-size: 1rem; color: #fff;">VECTOR EDITION</span></div>
+    <div class="btn-group">
+        <button class="btn-screen" onclick="init('screen')">HOST: EKRAN OL</button>
+        <button class="btn-p1" onclick="init('gun')">PLAYER 1: SİLAH</button>
+        <button class="btn-p2" onclick="init('duck')">PLAYER 2: ÖRDEK</button>
+    </div>
+    <div id="conn-info">
+        <p id="my-id">ROL SEÇİN</p>
+    </div>
 </div>
 
 <div id="game-container">
-    <div id="ui-layer">SCORE: <span id="score">0</span></div>
+    <div style="position:absolute; top:20px; left:20px; font-size:1.5rem; z-index:100;">SCORE: <span id="score-val">0</span></div>
     <div id="duck-target">
         <div class="hitbox"></div>
-        <svg viewBox="0 0 100 100" id="duck-svg">
+        <svg viewBox="0 0 100 100">
             <ellipse cx="50" cy="50" rx="35" ry="25" fill="#556b2f" />
             <circle cx="70" cy="35" r="15" fill="#556b2f" />
             <path d="M85 35 L 95 30 L 95 40 Z" fill="#ffa500" />
-            <rect x="20" y="40" width="30" height="5" fill="white" />
+            <rect x="25" y="45" width="20" height="4" fill="white" class="wing-anim" />
         </svg>
     </div>
     <div id="grass"></div>
 </div>
 
-<div id="gun-ui">
-    <video id="video-preview" autoplay playsinline></video>
-    <canvas id="capture-canvas" style="display:none;"></canvas>
-    <button id="fire-trigger">ATEŞ!</button>
+<div id="p1-ui" class="mobile-ui">
+    <video id="gun-cam" autoplay playsinline style="position:fixed; opacity:0.2; width:100%; height:100%; object-fit:cover;"></video>
+    <div style="position:relative; height:100%; display:flex; align-items:center; justify-content:center;">
+        <div class="fire-circle" id="fire-btn">ATEŞ!</div>
+    </div>
+    <canvas id="hit-canvas" style="display:none;"></canvas>
+</div>
+
+<div id="p2-ui" class="mobile-ui">
+    <div id="joystick-area">
+        <p>ÖRDEĞİ PARMAĞINLA SÜRÜKLE!</p>
+    </div>
 </div>
 
 <script>
-let peer, conn, role, score = 0;
-const container = document.getElementById('game-container');
-const duck = document.getElementById('duck-target');
-const video = document.getElementById('video-preview');
-const canvas = document.getElementById('capture-canvas');
+let peer, conns = [], role, score = 0;
+let duckPos = { x: 100, y: 100 };
 
-async function init(r) {
+function init(r) {
     role = r;
     const id = 'DH-' + Math.floor(1000 + Math.random() * 9000);
     peer = new Peer(id);
     
     peer.on('open', () => {
-        document.getElementById('conn-code').innerText = "KOD: " + id.replace('DH-','');
-        if(role === 'gun') {
-            startCamera();
-            let t = prompt("Ekrandaki kodu gir:");
-            if(t) { conn = peer.connect('DH-' + t.toUpperCase()); setupConn(); }
+        document.getElementById('my-id').innerText = "KOD: " + id.replace('DH-','');
+        if(role !== 'screen') {
+            let target = prompt("PC'deki kodu girin:");
+            if(target) {
+                const c = peer.connect('DH-' + target.toUpperCase());
+                setupConnection(c);
+            }
         }
     });
-    peer.on('connection', c => { conn = c; setupConn(); });
+
+    peer.on('connection', c => setupConnection(c));
 }
 
-async function startCamera() {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
-    video.srcObject = stream;
-}
-
-function setupConn() {
-    conn.on('open', () => {
+function setupConnection(c) {
+    conns.push(c);
+    c.on('open', () => {
         document.getElementById('setup').style.display = 'none';
         if(role === 'screen') {
-            container.style.display = 'block';
-            runGameLoop();
-        } else {
-            document.getElementById('gun-ui').style.display = 'block';
-            document.getElementById('fire-trigger').onclick = handleFire;
+            document.getElementById('game-container').style.display = 'block';
+            startGameLoop();
+        } else if(role === 'gun') {
+            document.getElementById('p1-ui').style.display = 'block';
+            startGunMode();
+        } else if(role === 'duck') {
+            document.getElementById('p2-ui').style.display = 'block';
+            startDuckMode();
         }
     });
-    
-    conn.on('data', data => {
-        if(data === 'REQ_FLASH') triggerFlash();
-        if(data === 'HIT') processHit();
+
+    c.on('data', data => {
+        if(data.type === 'FIRE_REQ') {
+            const container = document.getElementById('game-container');
+            container.classList.add('flash-active');
+            setTimeout(() => container.classList.remove('flash-active'), 100);
+        }
+        if(data.type === 'HIT') handleHit();
+        if(data.type === 'DUCK_MOVE') {
+            duckPos.x = data.x * window.innerWidth;
+            duckPos.y = data.y * window.innerHeight;
+        }
     });
 }
 
-// --- SİLAH (TELEFON) MANTIĞI ---
-function handleFire() {
-    // 1. Ekrana "karar ve beyaz kutuyu aç" sinyali gönder
-    conn.send('REQ_FLASH');
+// --- PLAYER 1 (SİLAH) ---
+async function startGunMode() {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    document.getElementById('gun-cam').srcObject = stream;
     
-    // 2. Çok kısa bir süre bekle (Ekranın kararması için)
-    setTimeout(() => {
-        const ctx = canvas.getContext('2d');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        ctx.drawImage(video, 0, 0);
-        
-        // 3. Merkeze bak (Nişan alınan yer)
-        const pixelData = ctx.getImageData(canvas.width/2, canvas.height/2, 1, 1).data;
-        const brightness = (pixelData[0] + pixelData[1] + pixelData[2]) / 3;
-        
-        // 4. Eğer parlaklık yüksekse (Beyaz kutuyu gördüyse) vurduk!
-        if(brightness > 200) {
-            conn.send('HIT');
-        }
-    }, 100); // 100ms gecikme
+    document.getElementById('fire-btn').ontouchstart = () => {
+        conns[0].send({type: 'FIRE_REQ'});
+        setTimeout(checkOpticalHit, 50);
+    };
 }
 
-// --- EKRAN (PC) MANTIĞI ---
-function triggerFlash() {
-    container.classList.add('flash-dark');
-    setTimeout(() => container.classList.remove('flash-dark'), 150); 
+function checkOpticalHit() {
+    const video = document.getElementById('gun-cam');
+    const canvas = document.getElementById('hit-canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0);
+    const pix = ctx.getImageData(canvas.width/2, canvas.height/2, 1, 1).data;
+    if((pix[0]+pix[1]+pix[2])/3 > 200) conns[0].send({type: 'HIT'});
 }
 
-function processHit() {
+// --- PLAYER 2 (ÖRDEK KONTROL) ---
+function startDuckMode() {
+    document.getElementById('joystick-area').ontouchmove = (e) => {
+        const touch = e.touches[0];
+        conns[0].send({
+            type: 'DUCK_MOVE',
+            x: touch.clientX / window.innerWidth,
+            y: touch.clientY / window.innerHeight
+        });
+    };
+}
+
+// --- HOST (PC) ---
+function handleHit() {
     score += 100;
-    document.getElementById('score').innerText = score;
+    document.getElementById('score-val').innerText = score;
+    const duck = document.getElementById('duck-target');
     duck.style.display = 'none';
-    setTimeout(() => {
-        duck.style.display = 'block';
-        resetDuckPosition();
-    }, 1000);
+    setTimeout(() => { duck.style.display = 'block'; }, 1000);
 }
 
-function resetDuckPosition() {
-    window.duckX = Math.random() * (window.innerWidth - 100);
-    window.duckY = window.innerHeight;
-}
+function startGameLoop() {
+    const duck = document.getElementById('duck-target');
+    let autoX = 5, autoY = 3;
 
-function runGameLoop() {
-    window.duckX = 100; window.duckY = 100;
-    let dx = 5, dy = 3;
-    
     function update() {
+        // Eğer Player 2 bağlı değilse otomatik uç
+        const p2Connected = conns.some(c => c.metadata?.role === 'duck'); // Basitleştirilmiş kontrol
+        
         if(duck.style.display !== 'none') {
-            window.duckX += dx; window.duckY += dy;
-            if(window.duckX < 0 || window.duckX > window.innerWidth - 80) dx *= -1;
-            if(window.duckY < 0 || window.duckY > window.innerHeight * 0.7) dy *= -1;
-            
-            duck.style.left = window.duckX + 'px';
-            duck.style.top = window.duckY + 'px';
-            duck.style.transform = `scaleX(${dx > 0 ? 1 : -1})`;
+            // Player 2 kontrolü yoksa (ya da eklenmediyse) otomatik devam et
+            // (Şu anki kodda Player 2 verisi gelirse duckPos güncelleniyor)
+            duck.style.left = duckPos.x + 'px';
+            duck.style.top = duckPos.y + 'px';
         }
         requestAnimationFrame(update);
     }
