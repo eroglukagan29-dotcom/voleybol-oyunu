@@ -93,53 +93,109 @@ function setupConn() {
     });
 }
 
-// OYUN MOTORU (EKRAN)
+// OYUN MOTORU (EKRAN TARAFINI BU ŞEKİLDE GÜNCELLE)
 function initGame() {
     const cvs = document.getElementById('game');
     const ctx = cvs.getContext('2d');
     cvs.style.display = 'block';
-    cvs.width = window.innerWidth; cvs.height = window.innerHeight;
+    cvs.width = window.innerWidth; 
+    cvs.height = window.innerHeight;
     
-    let duck = { x: 100, y: 100, dx: 5, dy: 3, r: 40, hit: false };
+    // Ördek başlangıç değerleri
+    let duck = { 
+        x: cvs.width / 2, 
+        y: cvs.height - 100, 
+        dx: 4, 
+        dy: -4, 
+        r: 35, 
+        hit: false, 
+        falling: false 
+    };
+    
     let flash = false;
 
-    window.flashScreen = () => { flash = true; setTimeout(() => flash = false, 60); };
+    window.flashScreen = () => { 
+        flash = true; 
+        setTimeout(() => flash = false, 70); 
+    };
+
     window.registerHit = () => {
+        if (duck.hit) return; // Zaten vurulmuşsa tekrar vurulmasın
         duck.hit = true;
         score += 100;
         document.getElementById('score-board').innerText = "SCORE: " + score;
+        
+        // Vurulunca kısa bir duraksama, sonra düşüş
+        duck.dx = 0;
+        duck.dy = 0;
+        
         setTimeout(() => {
-            duck.x = Math.random() * cvs.width;
-            duck.y = cvs.height;
-            duck.hit = false;
-            duck.dx = (5 + score/500) * (Math.random() > 0.5 ? 1 : -1);
-            duck.dy = - (5 + score/500);
-        }, 1000);
+            duck.falling = true;
+            duck.dy = 10; // Hızlıca düş
+        }, 300);
     };
 
+    function resetDuck() {
+        duck.x = Math.random() * (cvs.width - 100) + 50;
+        duck.y = cvs.height - 50;
+        duck.hit = false;
+        duck.falling = false;
+        // Puan arttıkça hızlanan dinamik hız
+        let speed = 4 + (score / 1000);
+        duck.dx = (Math.random() > 0.5 ? speed : -speed);
+        duck.dy = -speed;
+    }
+
     function draw() {
+        // Arka plan rengi (Vurulma anında beyaz, normalde gökyüzü)
         ctx.fillStyle = flash ? "white" : "#4ec0ff";
         ctx.fillRect(0, 0, cvs.width, cvs.height);
 
-        if(!flash) {
-            if(!duck.hit) {
-                duck.x += duck.dx; duck.y += duck.dy;
-                if(duck.x < 0 || duck.x > cvs.width) duck.dx *= -1;
-                if(duck.y < 0 || duck.y > cvs.height * 0.7) duck.dy *= -1;
-                ctx.fillStyle = "yellow";
-            } else {
-                duck.y += 10; // Düşme efekti
-                ctx.fillStyle = "red";
+        if (!flash) {
+            // Ördek Hareketi
+            duck.x += duck.dx;
+            duck.y += duck.dy;
+
+            // Ekran sınırlarından sekme (Vurulmamışsa)
+            if (!duck.hit) {
+                if (duck.x < 0 || duck.x > cvs.width) duck.dx *= -1;
+                if (duck.y < 0) duck.dy *= -1;
+                // Ördek çok aşağı inerse (kaçarsa) resetle
+                if (duck.y > cvs.height) resetDuck();
             }
-            ctx.beginPath(); ctx.arc(duck.x, duck.y, duck.r, 0, 7); ctx.fill();
-            // Kanat efekti gibi basit bir kare
-            ctx.fillRect(duck.x-10, duck.y-10, 20, 20);
+
+            // Ördek yere düştüyse resetle
+            if (duck.falling && duck.y > cvs.height) {
+                resetDuck();
+            }
+
+            // Görselleştirme
+            ctx.save();
+            ctx.translate(duck.x, duck.y);
+            
+            if (duck.hit && !duck.falling) {
+                // Vurulma anı (şaşkın ördek)
+                ctx.fillStyle = "red";
+                ctx.fillRect(-20, -20, 40, 40);
+                ctx.fillStyle = "white";
+                ctx.fillText("X X", -10, 5);
+            } else {
+                // Normal ördek veya düşen ördek
+                ctx.fillStyle = duck.falling ? "#8B4513" : "yellow";
+                ctx.beginPath();
+                ctx.arc(0, 0, duck.r, 0, Math.PI * 2);
+                ctx.fill();
+                // Gaga
+                ctx.fillStyle = "orange";
+                ctx.fillRect(20, -5, 15, 10);
+            }
+            ctx.restore();
         }
         requestAnimationFrame(draw);
     }
+    resetDuck(); // Oyunu başlat
     draw();
 }
-
 // SİLAH KONTROLÜ (TELEFON)
 document.getElementById('fireBtn').onclick = () => {
     if(!conn || !conn.open) return;
